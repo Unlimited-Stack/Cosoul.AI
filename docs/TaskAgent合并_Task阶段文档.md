@@ -63,7 +63,18 @@ Phase 3 (A) ──┘        │        │       │
   ```
 - [ ] 在根 `package.json` 的 workspaces 确认包含 `packages/task-agent`
 - [ ] 更新 `turbo.json` 添加 task-agent 构建任务
-- [ ] 创建 `.data/` 目录结构模板（User.md, task_agents/, logs/）
+- [ ] 创建 `.data/<persona_id>/` 目录结构模板：
+  ```
+  .data/<persona_id>/
+  ├── User.md
+  ├── raw_chats_summary/
+  ├── logs/
+  └── task_agents/
+      └── <task_id>/
+          ├── task.md
+          ├── task_summary.md
+          └── data/ (daily_log/, agent_chat/, agent_chat_summary/)
+  ```
 - [ ] 创建 `.env.example` 文件列出所需环境变量
 - [ ] 验证 `npm install` 和 `npm run build` 通过
 
@@ -145,17 +156,27 @@ Phase 3 (A) ──┘        │        │       │
   - `initDatabase()` — 启用 pgvector 扩展 (`CREATE EXTENSION IF NOT EXISTS vector`)
   - 连接池配置（max connections, idle timeout）
 - [ ] 实现 `storage/schema.db.ts`（Drizzle 表定义）：
-  - `tasks` 表 — task_id, status, interaction_type, current_partner_id, entered_status_at, created_at, updated_at, version, pending_sync, hidden, raw_description, target_activity, target_vibe, detailed_plan
-  - `task_vectors` 表 — task_id, field(activity/vibe/raw), embedding(`vector(1024)`类型), model, updated_at
+  - `users` 表 — user_id, email, created_at
+  - `personas` 表 — persona_id, user_id, name, avatar, bio, settings(jsonb), created_at, updated_at
+  - `persona_profiles` 表 — persona_id, profile_text, preferences(jsonb), updated_at（User.md 派生）
+  - `tasks` 表 — task_id, **persona_id**, status, interaction_type, current_partner_id, raw_description, target_activity, target_vibe, detailed_plan, entered_status_at, created_at, updated_at, version, pending_sync, hidden
+  - `task_summaries` 表 — task_id, summary_text, tags(jsonb), created_at（task_summary.md 派生，支持跨任务复用）
+  - `task_vectors` 表 — task_id, field(activity/vibe/raw/summary), embedding(`vector(1024)`类型), model, updated_at
+  - `contacts` 表 — id, persona_id, friend_persona_id, status(pending/accepted/blocked), ai_note, source_task_id, created_at
   - `handshake_logs` 表 — id, task_id, direction(inbound/outbound), envelope(jsonb), timestamp
   - `idempotency_keys` 表 — key, response(jsonb), created_at（TTL索引7天自动清理）
-  - `chat_messages` 表 — id, task_id, sender_type, sender_id, content, metadata(jsonb), created_at
-  - `memory_summaries` 表 — id, task_id, summary_text, turn_count, created_at
-  - `task_index` 表 — 轻量跨任务查询视图
+  - `chat_messages` 表 — id, task_id, persona_id, sender_type, sender_id, content, metadata(jsonb), created_at
+  - `memory_summaries` 表 — id, persona_id, task_id, summary_text, source_log_id, turn_count, created_at
   - 为 task_vectors.embedding 创建 HNSW 索引 (`CREATE INDEX ... USING hnsw (embedding vector_cosine_ops)`)
+  - 为 tasks 创建 (persona_id, status) 联合索引
+  - 为 contacts 创建 (persona_id) 索引
 - [ ] 编写 Drizzle 数据库迁移脚本（`drizzle-kit generate` + `drizzle-kit migrate`）
 - [ ] 实现核心数据库操作函数：
-  - `upsertTask(task)` / `readTask(taskId)` / `listTasksByStatuses(statuses)`
+  - `createPersona(userId, data)` / `getPersonas(userId)` / `updatePersona(personaId, data)`
+  - `syncUserMd(personaId, content)` — User.md ↔ persona_profiles 同步
+  - `upsertTask(task)` / `readTask(taskId)` / `listTasksByStatuses(personaId, statuses)`
+  - `saveTaskSummary(taskId, summary)` / `findSimilarTaskSummaries(personaId, query)` — 跨任务复用
+  - `createContact(personaId, friendPersonaId, note)` / `listContacts(personaId)`
   - `upsertTaskVector(taskId, field, embedding)` — 写入 pgvector 列
   - `readTaskVectors(taskId)` — 读取任务所有向量
   - `vectorSearch(queryVector, field, filter, topK)` — 使用 `<=>` 运算符的原生向量检索
@@ -163,7 +184,8 @@ Phase 3 (A) ──┘        │        │       │
 - [ ] 实现 `storage/task-md.ts`：
   - task.md 的 YAML头 + Markdown正文 读写
   - `serializeTaskMD(task)` / `parseTaskMD(content)`
-  - 文件路径解析：`.data/task_agents/<task_id>/task.md`
+  - 文件路径解析：`.data/<persona_id>/task_agents/<task_id>/task.md`
+  - task_summary.md 读写：`.data/<persona_id>/task_agents/<task_id>/task_summary.md`
 - [ ] 实现 `storage/storage.ts` 防腐层：
   - `saveTaskMD(task, options?)` — 含乐观锁校验（写task.md + 写PostgreSQL）
   - `readTaskDocument(taskId)` — 优先读task.md，回退读PostgreSQL
@@ -255,13 +277,21 @@ Phase 3 (A) ──┘        │        │       │
 
 #### L2 沙盒谈判（`dispatcher/l2-sandbox.ts`）
 - [ ] `executeL2Sandbox(localTask, inboundEnvelope)` — 流程：
-  1. 加载 User.md 用户画像
+  1. 加载当前分身的 User.md 用户画像
   2. 检查 interaction_type 兼容性
-  3. 构建 Prompt（含本地task + 对方信息）
-  4. 调用 LLM 做研判
-  5. 解析 ACCEPT / REJECT / COUNTER_PROPOSE
-  6. 写入 scratchpad.md（CoT不出网）
-  7. 返回 L2Decision
+  3. 先对对方 task.md 生成 CoT 思考（写入 `scratchpad.md`，**绝不外发**）
+  4. 基于 CoT 构建正式回复 Prompt
+  5. 调用 LLM 做研判
+  6. 解析 ACCEPT / REJECT / COUNTER_PROPOSE
+  7. 对于己方未提及但对方有的偏好 → 记录为 `unresolved_preferences`，展现在握手报告中
+  8. 返回 L2Decision + unresolved_preferences
+- [ ] 规定 Agent 交流 JSON schema：
+  - 标准化交流格式，根据 `return` 字段判断结果
+  - 限制最多 5 轮，防止 Agent 超额消耗
+- [ ] 握手报告生成：
+  - "已为您找到N个匹配结果，1为XXX，2为XXX..."
+  - 每个结果包含：匹配度、关键匹配点、未握手确定的偏好
+  - 用户可选择跳转修改 task.md
 
 #### Dispatcher 总线（`dispatcher/dispatcher.ts`）
 - [ ] `processDraftingTasks()` — 批量 Drafting→Searching
@@ -283,38 +313,46 @@ Phase 3 (A) ──┘        │        │       │
 
 ---
 
-## Phase 6：发布需求页面（前端 Part 1）
-**负责人：工程师B** | **预估：2天** | **前置依赖：Phase 4（Schema定义完成即可开始）**
+## Phase 6：Tasks 页面与 Intake 对话（前端 Part 1）
+**负责人：工程师B** | **预估：2.5天** | **前置依赖：Phase 4（Schema定义完成即可开始）**
 
 ### 目标
-实现"发布需求（发帖）"页面 UI 和 Intake 多轮对话交互。
+实现 Tasks 页面（任务中心）和 Intake 多轮对话交互，含分身选择。
 
 ### 任务清单
 
 #### Intake 多轮对话（@repo/task-agent, 与工程师C协同）
 - [ ] 实现 `intake/intake.ts`：
-  - `collectTaskFromUser(conversation)` — 多轮LLM对话收集需求
+  - `collectTaskFromUser(personaId, conversation)` — 加载该分身的 User.md 偏好，结合偏好生成针对性引导问题
   - 提取字段：interaction_type, rawDescription, targetActivity, targetVibe, detailedPlan
   - 不完整时继续追问 followUpQuestion
-  - 返回 { task: TaskDocument, transcript: Message[] }
+  - 对话关键信息提取保存为 `task_summary.md`（标签总结，可跨任务复用）
+  - 检查是否有历史相似任务的 task_summary 可快速调用
+  - 返回 { task: TaskDocument, taskSummary: string, transcript: Message[] }
 
-#### 发布需求页面 UI
-- [ ] 创建 `packages/ui/src/screens/PublishScreen.tsx`：
-  - 顶部标题区："发布你的需求"
+#### Tasks 页面 UI
+- [ ] 创建 `packages/ui/src/screens/TaskScreen.tsx`（任务中心）：
+  - 顶部分身切换器（显示当前分身名称 + 头像，可切换）
+  - 任务列表（当前分身下所有任务，按状态分组/筛选）
+  - 每个任务卡片显示：任务摘要、状态标签、Agent最新进展
+  - "创建新任务" 按钮 → 进入 TaskCreateScreen
+- [ ] 创建 `packages/ui/src/screens/TaskCreateScreen.tsx`（创建任务 / Intake对话）：
   - 聊天气泡式交互区（Agent提问 + 用户回答）
-  - 底部输入框 + 发送按钮
-  - Agent回复使用SSE流式显示（复用现有SSE基础设施）
+  - Agent 结合当前分身 User.md 偏好生成引导问题
+  - Agent 回复使用 SSE 流式显示
   - 提取完成后显示结构化预览卡片：
     - interaction_type 标签
     - targetActivity 摘要
     - targetVibe 氛围标签
     - detailedPlan 展开详情
   - 确认按钮（"开始匹配"）和编辑按钮（"继续调整"）
-- [ ] 适配Web端：`apps/web/app/publish/page.tsx`
-- [ ] 适配移动端（如有）：在Tab导航中添加入口
+  - Agent可能在任务进行中需要用户补充更多细节（通过聊天形式）
+- [ ] 适配Web端：`apps/web/app/tasks/page.tsx`
+- [ ] 适配移动端：Tab导航中的 Tasks 入口
 - [ ] 对接后端 API（Phase 7完成后联调）：
-  - `POST /api/task` — 创建任务
+  - `POST /api/task` — 创建任务（含 persona_id）
   - `POST /api/llm/chat` — Intake对话
+  - `GET /api/task?persona_id=xxx` — 获取分身下任务列表
 
 #### 样式与交互
 - [ ] 聊天气泡样式（用户右侧蓝色，Agent左侧灰色）
@@ -339,14 +377,23 @@ Phase 3 (A) ──┘        │        │       │
 
 ### 任务清单
 
+#### 分身管理 API
+- [ ] `POST /api/persona` — 创建分身
+  - 请求体：{ name, avatar?, bio?, settings? }
+  - 初始化 `.data/<persona_id>/` 目录 + User.md 模板
+  - 返回 persona_id
+- [ ] `GET /api/persona` — 获取用户所有分身列表
+- [ ] `GET /api/persona/[id]` — 获取分身详情（含 User.md 内容）
+- [ ] `PATCH /api/persona/[id]` — 更新分身信息 + 同步 persona_profiles
+
 #### 任务管理 API
 - [ ] `POST /api/task` — 创建新任务
-  - 请求体：TaskDocument（或Intake结果）
-  - 调用 `saveTaskMD()` 存储
+  - 请求体：TaskDocument + **persona_id**（关联分身）
+  - 调用 `saveTaskMD()` 存储 + 生成 task_summary.md
   - 返回 task_id + status
 - [ ] `GET /api/task` — 获取任务列表
-  - Query参数：status[], hidden
-  - 调用 `listTasksByStatuses()`
+  - Query参数：**persona_id**, status[], hidden
+  - 调用 `listTasksByStatuses(personaId, statuses)`
 - [ ] `GET /api/task/[id]` — 获取任务详情
   - 返回 task + waiting_human_summary（如适用）
 - [ ] `POST /api/task/[id]/run` — 执行FSM单步
@@ -376,6 +423,12 @@ Phase 3 (A) ──┘        │        │       │
 - [ ] `POST /api/embedding` — 文本向量化
   - 请求体：{ texts: string[] }
   - 返回向量数组
+
+#### 联系人 API
+- [ ] `POST /api/contact` — 发送好友申请
+  - 请求体：{ persona_id, friend_persona_id, source_task_id? }
+- [ ] `GET /api/contact?persona_id=xxx` — 获取分身联系人列表（含AI好友备注）
+- [ ] `PATCH /api/contact/[id]` — 接受/拒绝/屏蔽好友请求
 
 #### 通用处理
 - [ ] 所有路由添加 CORS headers
@@ -408,16 +461,21 @@ Phase 3 (A) ──┘        │        │       │
 - [ ] `truncateTurnsByBudget(turns, budget)` — 从最新往最旧保留
 
 #### Memory 压缩（`memory/memory.ts`）
-- [ ] `flushMemoryIfNeeded(input)` — 流程：
+- [ ] `flushMemoryIfNeeded(personaId, taskId, input)` — 流程：
   1. 检查 estimated_tokens >= trigger_tokens
-  2. 创建原始对话快照写入 `raw_chats/`
+  2. 创建原始对话快照写入 `raw_chats/`（仅回溯凭证，不参与Embedding）
   3. 调用 LLM 生成 summary
-  4. Summary 写入 `raw_chats_summary/`
-  5. 写入观测性日志
-  6. 返回 { rawLogPath, summaryPath, summaryText } 或 null
+  4. Summary 写入 `raw_chats_summary/`（参与 Embedding，用于 RAG）
+  5. 提取有用信息补充更新 task.md 和 User.md
+  6. Summary 同步写入 `memory_summaries` 表 + embedding 写入 `task_vectors` 表
+  7. 写入观测性日志
+  8. 返回 { rawLogPath, summaryPath, summaryText, updatedFields } 或 null
 - [ ] `summarizeTurns(turns)` — 调用 LLM 生成对话摘要
   - 提取关键信息、决策点、未解决问题
   - 控制摘要长度 <= 600字
+- [ ] `generateTaskSummary(taskId, transcript)` — 从 Intake 对话生成 task_summary.md
+  - 提取关键信息标签
+  - 存入 task_summaries 表，支持后续相似任务快速调用
 
 #### Prompt 模板
 - [ ] 定义各场景 Prompt 模板：
@@ -433,20 +491,23 @@ Phase 3 (A) ──┘        │        │       │
 
 ---
 
-## Phase 9：消息页面改造（前端 Part 3）
-**负责人：工程师B** | **预估：3天** | **前置依赖：Phase 6, Phase 7**
+## Phase 9：Messages / Contacts / Profile 页面改造（前端 Part 3）
+**负责人：工程师B** | **预估：3.5天** | **前置依赖：Phase 6, Phase 7**
 
 ### 目标
-将现有占位 MessageScreen 改造为支持四种交互模式的完整消息页面。
+实现 Messages（含分身切换）、Contacts、Profile（含分身管理）三个页面。
 
 ### 任务清单
 
 #### 消息列表页（`MessageScreen.tsx` 改造）
+- [ ] 顶部分身切换器（与 Tasks 页共用组件）
 - [ ] 消息列表 UI：
+  - 显示**当前分身**下的所有对话消息历史条（类似社交软件）
   - 每条消息显示：对方头像、名称、最新消息摘要、时间、未读标记
   - 区分消息类型标签：人-人、Agent-Agent、Agent-人、人-Agent
   - 任务状态角标（Negotiating、Waiting_Human、Closed等）
   - 下拉刷新 + 上拉加载更多
+  - 切换分身时刷新消息列表
 - [ ] 消息分类Tab：
   - "全部" | "匹配中" | "已完成" | "Agent自动"
 
@@ -480,28 +541,48 @@ Phase 3 (A) ──┘        │        │       │
   - 显示Agent正在思考的状态
 
 #### Waiting_Human 交互
-- [ ] 匹配结果展示卡片：
-  - 对方 targetActivity + targetVibe
-  - 匹配度分数
-  - 协商历史摘要
+- [ ] 握手报告展示卡片：
+  - "已为您找到N个匹配结果"
+  - 每个结果显示：对方 targetActivity + targetVibe + 匹配度分数 + 协商历史摘要
+  - 展示未握手确定的偏好（Agent反问项）
 - [ ] 操作按钮：
-  - "满意，确认匹配" → Closed
-  - "不满意，重新搜索" → Revising
+  - "满意，发送好友申请" → Closed → 创建 Contact
+  - "不满意，重新搜索" → Revising（可跳转修改 task.md）
   - "后台挂起继续找" → Listening
   - "取消任务" → Cancelled
 - [ ] Listening 模式报告页：
   - 展示挂起期间收到的所有提案
   - 每个提案显示匹配度和摘要
 
+#### Contacts 页面（`ContactScreen.tsx` 新建）
+- [ ] 当前分身下联系人列表
+- [ ] 每个好友显示：头像、名称、AI生成的好友备注（仅自己可见，含添加时间、原因等）
+- [ ] 好友请求管理（接受/拒绝）
+- [ ] 好友搜索功能（通过历史对话、添加原因等关键词查找）
+- [ ] 点击联系人 → 进入聊天界面
+
+#### Profile 页面改造（`ProfileScreen.tsx`）
+- [ ] 分身管理区域：
+  - 分身列表（卡片展示，可切换）
+  - 创建新分身
+  - 编辑分身：头像、简介、照片等（类似社交软件主页）
+- [ ] AI侧写展示：
+  - 显示当前分身的 User.md 内容（AI 总结的用户侧写）
+  - 用户可根据自己定位查看和修改
+- [ ] 历史任务记录
+- [ ] 偏好设置
+
 #### 任务详情页（`TaskDetailScreen.tsx` 新建）
 - [ ] 任务信息展示（rawDescription, targetActivity, targetVibe）
+- [ ] task.md 在线查看和修改
 - [ ] FSM状态时间线（可视化状态流转历史）
 - [ ] 当前状态操作按钮
 
 ### 交付标准
-- 四种交互模式切换自然
-- Waiting_Human 操作流程完整
-- 消息列表加载流畅
+- 四种消息交互模式切换自然
+- 分身切换在 Messages / Tasks 页面联动正确
+- Contacts 好友管理流程完整
+- Profile 分身管理 + User.md 查看修改正常
 - 跨平台一致
 
 ---
@@ -548,29 +629,34 @@ Phase 3 (A) ──┘        │        │       │
 
 ---
 
-## Phase 11：任务多开与状态编排
-**负责人：工程师A + 工程师C** | **预估：2天** | **前置依赖：Phase 8, Phase 10**
+## Phase 11：多分身 × 任务多开 与状态编排
+**负责人：工程师A + 工程师C** | **预估：2.5天** | **前置依赖：Phase 8, Phase 10**
 
 ### 目标
-支持用户同时运行多个任务，每个任务独立状态追踪，待机和运行模式可切换。
+支持用户多个分身各自独立运行多个任务，分身间数据隔离，任务独立状态追踪。
 
 ### 任务清单
 
 #### 任务调度器（工程师C）
 - [ ] 实现任务调度管理：
-  - 每个任务独立FSM实例，互不干扰
-  - 任务队列管理（活跃任务 vs 挂起任务）
+  - 每个分身(persona)下的任务独立FSM实例，互不干扰
+  - 分身间完全隔离：A分身的任务不会匹配到自己B分身的任务
+  - 任务队列管理（活跃任务 vs 挂起任务），按 persona_id 分组
   - startTask 和 listener 逻辑编排：
     - 新建任务不影响已有任务状态
     - 挂起任务(Listening)仍可接收入站握手
     - 活跃任务(Searching/Negotiating)有独立生命周期
 - [ ] `TaskScheduler` 类：
-  - `startTask(taskId)` — 激活任务，进入主动流
+  - `startTask(personaId, taskId)` — 激活任务，进入主动流
   - `pauseTask(taskId)` — 挂起任务到Listening
   - `resumeTask(taskId)` — 从Listening恢复
   - `cancelTask(taskId)` — 取消任务
-  - `getActiveTasks()` — 获取所有活跃任务
+  - `getActiveTasks(personaId)` — 获取分身下所有活跃任务
   - `getTaskStatus(taskId)` — 查询任务当前状态
+- [ ] 高度匹配模式：
+  - 对于多次被其他Agent握手的热门分身，可开启高门槛过滤
+  - 配置在 persona.settings.high_match_mode = true
+  - 开启后仅高度匹配的 Agent 才能对该分身发起聊天申请
 
 #### 并发安全（工程师A）
 - [ ] 乐观锁强化：
@@ -668,14 +754,20 @@ Phase 3 (A) ──┘        │        │       │
   1. Waiting_Human → 用户选"不满意" → Revising
   2. 修改需求 → Searching → 重新匹配
 
-- [ ] **场景5：任务多开**
-  1. 同时创建3个任务
-  2. 验证各自独立运行
-  3. 一个任务Closed不影响其他任务
+- [ ] **场景5：多分身 × 任务多开**
+  1. 用户创建2个分身（A、B）
+  2. 分身A同时创建2个任务，分身B创建1个任务
+  3. 验证各自独立运行，分身间不串扰
+  4. A分身的任务Closed不影响B分身的任务
 
 - [ ] **场景6：Listening挂起**
   1. Waiting_Human → Listening → 后台接收多个提案
   2. 恢复后查看报告 → 选择最优匹配
+
+- [ ] **场景7：匹配成功 → 好友申请 → Contacts**
+  1. 匹配成功 → 用户确认 → 发送好友申请
+  2. 对方接受 → 双方进入 Contacts 联系人列表
+  3. 验证 AI 好友备注自动生成
 
 #### 故障测试（工程师A + C）
 - [ ] LLM API 超时处理
@@ -696,7 +788,7 @@ Phase 3 (A) ──┘        │        │       │
 - [ ] Token消耗统计
 
 ### 交付标准
-- 6个场景全部通过
+- 7个场景全部通过
 - 无阻塞性Bug
 - 前后端数据一致
 - 错误有明确的错误码和日志
@@ -738,7 +830,7 @@ Week 3:
 | Phase 5 完成 | L0→L1→L2链路mock跑通 | 阻塞Phase 7, 10 |
 | Phase 7 完成 | API curl测试全通 | 阻塞前后端联调 |
 | Phase 9 完成 | 消息页4种模式可切换 | 阻塞Phase 10 |
-| Phase 13 完成 | 6个E2E场景通过 | **初级Demo可演示** |
+| Phase 13 完成 | 7个E2E场景通过 | **初级Demo可演示** |
 
 ---
 
@@ -747,31 +839,51 @@ Week 3:
 ### A. 前后端数据契约
 
 ```typescript
-// 创建任务
+// === 分身管理 ===
+POST /api/persona
+Request:  { name, avatar?, bio?, settings? }
+Response: { persona_id, created_at }
+
+GET /api/persona
+Response: { personas: Persona[] }
+
+PATCH /api/persona/:id
+Request:  { name?, avatar?, bio?, settings?, user_md_content? }
+Response: { persona: Persona }
+
+// === 任务管理 ===
 POST /api/task
-Request:  { interaction_type, rawDescription, targetActivity, targetVibe, detailedPlan }
+Request:  { persona_id, interaction_type, rawDescription, targetActivity, targetVibe, detailedPlan }
 Response: { task_id, status, created_at }
 
-// 任务列表
-GET /api/task?status=Searching,Negotiating&hidden=false
+GET /api/task?persona_id=xxx&status=Searching,Negotiating&hidden=false
 Response: { tasks: TaskDocument[] }
 
-// 任务详情
 GET /api/task/:id
-Response: { task: TaskDocument, summary?: WaitingHumanSummary }
+Response: { task: TaskDocument, summary?: WaitingHumanSummary, handshakeReport?: HandshakeReport }
 
-// 执行步进
 POST /api/task/:id/run
 Response: { changed: boolean, task: TaskDocument }
 
-// 用户意图
 POST /api/task/:id/intent
 Request:  { intent: "satisfied" | "unsatisfied" | "enable_listener" | "closed" | "exit" }
-Response: { status, listenerEnabled? }
+Response: { status, listenerEnabled?, contactCreated? }
 
-// LLM对话（流式）
+// === 联系人 ===
+POST /api/contact
+Request:  { persona_id, friend_persona_id, source_task_id? }
+Response: { contact_id, status: "pending" }
+
+GET /api/contact?persona_id=xxx
+Response: { contacts: Contact[] }  // 含 ai_note
+
+PATCH /api/contact/:id
+Request:  { status: "accepted" | "blocked" }
+Response: { contact: Contact }
+
+// === LLM对话（流式） ===
 POST /api/llm/chat
-Request:  { provider?, model?, messages: AgentMessage[], stream?: boolean }
+Request:  { persona_id?, provider?, model?, messages: AgentMessage[], stream?: boolean }
 Response: SSE stream | { content: string }
 ```
 
