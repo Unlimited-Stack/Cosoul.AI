@@ -1,8 +1,27 @@
-# Cosoul.AI — AI 社交匹配社区
+# Cosoul.AI — Multi-Agent 意图路由匹配引擎
 
-基于**数字孪生 Agent** 的智能社交匹配平台。每位用户拥有一个 AI 分身（Agent），能够自主理解需求、搜寻匹配对象、代理协商，最终由真人确认达成连接。
+让私人 AI 替你全网交涉。基于**多智能体（Multi-Agent）** 架构，AI 之间进行自动化机对机（M2M）意图交涉，帮助人类精准匹配最契合的人与资源，实现 0 摩擦的社交与交易。
 
-采用 `TypeScript + Next.js + Expo` (Turborepo) 全栈架构，实现 Web 端与移动端 (iOS/Android) 代码高度复用。项目专为云原生环境（GitHub Codespaces）设计，无需配置本地 Xcode/Android Studio 即可完成极速跨端开发与真机调试。
+每位用户可创建**多个 AI 分身（Persona）**，每个分身代表独立人格，拥有独立偏好档案、任务列表和联系人——AI 替你找人、谈判、筛选，最终由真人确认达成连接。
+
+采用 `TypeScript + Next.js + Expo` (Turborepo) 全栈架构，Web 端与移动端代码高度复用。项目专为云原生环境（GitHub Codespaces）设计。
+
+---
+
+## 核心概念：AI 分身（Persona）
+
+每个用户可以创建多个 AI 分身，每个分身代表一个独立人格：
+
+```
+用户 (1)
+├── AI分身A "社交达人"     → User_A.md → [任务1, 任务2, 联系人...]
+├── AI分身B "技术宅"       → User_B.md → [任务3, 联系人...]
+└── AI分身C "健身搭子"     → User_C.md → [任务4, 任务5, 联系人...]
+```
+
+- 每个分身有独立的 `User.md`（人格偏好档案），Agent 基于此做决策
+- 每个分身可独立发布任务、管理联系人、接收消息
+- 分身之间数据隔离，前端可自由切换当前活跃分身
 
 ---
 
@@ -10,36 +29,44 @@
 
 ### TaskAgent 智能匹配系统
 
-用户发布需求后，AI Agent 自动完成三层漏斗匹配：
+用户选择 AI 分身后发布需求，Agent 自动完成三层漏斗匹配：
 
-1. **发布需求（发帖）** — 通过多轮 AI 对话收集用户需求，提取结构化信息（活动类型、氛围偏好、详细计划）
-2. **Agent 自动搜寻（L0/L1）** — L0 结构化硬过滤 + L1 向量语义检索（PostgreSQL pgvector），高效筛选候选
-3. **Agent 协商与消息交互（L2）** — Agent 间自动握手谈判，支持四种交互模式：
-   - 人 - 人：双方真人直接对话
-   - Agent - Agent：双方 AI 自动协商
-   - Agent - 人：AI 代理主动联系对方
-   - 人 - Agent：用户与对方 AI 交互
+1. **发布需求** — 多轮 AI 对话收集需求（结合分身 User.md 偏好），生成 `task.md` + `task_summary.md`
+2. **Agent 自动搜寻（L0/L1）** — L0 结构化硬过滤 + L1 向量语义检索（PostgreSQL pgvector）
+3. **Agent 协商（L2）** — Agent 间自动握手谈判，CoT 推理写入 scratchpad（不外发），支持反问机制
+4. **匹配确认** — 满意 → 发送好友申请 → 进入联系人；不满意 → 修改重新搜索
+
+**四种消息交互模式：**
+| 模式 | 说明 |
+|------|------|
+| 人 - 人 | 双方真人直接对话 |
+| Agent - Agent | 双方 AI 自动协商（握手协议） |
+| Agent - 人 | AI 代理主动联系对方 |
+| 人 - Agent | 用户与对方 AI 交互 |
 
 ### 产品页面结构（5 Tab）
 
 | Tab | 页面 | 功能 |
 |-----|------|------|
-| 1 | 消息 | Agent 交互中心，四种对话模式，匹配结果确认 |
-| 2 | 瀑布流 | 社区信息流，展示活跃需求和匹配动态 |
-| 3 | 发布需求 | AI 多轮对话收集需求，生成结构化任务 |
-| 4 | 发现 | 探索卡片，浏览社区内容 |
-| 5 | 我的 | 个人主页，任务管理，Agent 设置 |
+| **首页** | AI 社区首页 | 未来 AI 社区入口（当前版本预留，后续承载社区核心功能） |
+| **发现** | 发现/动态 | 未来关注的人/博主动态信息流（当前版本预留） |
+| **发布** | 发布中心 | 创建新 Task 任务（当前核心功能）；未来扩展发帖、视频等多媒体发布 |
+| **消息** | 消息 + 联系人 | 顶部分身切换器，切换后显示对应分身的任务消息和 Agent 聊天；含联系人列表与好友请求 |
+| **我的** | 个人主页 | 分身管理、展示面编辑、偏好信息，可查看 AI 总结的用户侧写 User.md |
 
 ### 任务状态机（FSM）
 
-每个任务独立追踪，支持多任务并发：
+每个任务独立追踪，每个分身下支持多任务并发：
 
 ```
-用户发帖 → Drafting → Searching → Negotiating → Waiting_Human → Closed
-                                                      ↓
-                                              不满意 → Revising → 重新搜索
-                                              挂起 → Listening（后台持续匹配）
+选择分身 → 发布需求 → Drafting → Searching → Negotiating → Waiting_Human → Closed
+                                                                 ↓
+                                                         满意 → 好友申请 → 消息Tab联系人
+                                                         不满意 → Revising → 重新搜索
+                                                         挂起 → Listening（后台持续匹配）
 ```
+
+**高级功能**：热门 Agent 可开启"高度匹配"模式，大幅提高被申请互动的条件门槛。
 
 ---
 
@@ -52,12 +79,13 @@
   - `packages/ui`: 跨平台 UI 组件库（@repo/ui），含主题系统、液态玻璃导航
   - `packages/task-agent`: Agent 核心包（@repo/task-agent），含 FSM、Dispatcher、LLM、向量搜索
 - **数据层**:
-  - PostgreSQL 16 + pgvector：任务数据、向量索引、握手记录、幂等控制
-  - task.md (YAML + Markdown)：任务单一真相源
+  - PostgreSQL 16 + pgvector：用户、分身、任务、联系人、向量索引、握手记录
+  - `.data/<persona_id>/` 文件层：per-persona 的 User.md、task.md（单一真相源）、对话记录
+  - 双层映射：文件层 = 真相源，PostgreSQL = 可重建的派生层
 - **AI 层**:
-  - 多厂商 LLM 适配：OpenAI / Claude / Qwen（以 OpenAI 格式为标准的 BaseModel 抽象）
+  - 多厂商 LLM 适配：OpenAI / Claude / Qwen（BaseModel 抽象，OpenAI 格式为标准）
   - DashScope text-embedding-v4：向量化引擎
-  - pgvector HNSW 索引：高性能向量检索
+  - pgvector HNSW 索引：三字段加权检索（activity 0.35 + vibe 0.35 + description 0.30）
 - **开发环境**: Docker + GitHub Codespaces (Node.js, Expo CLI, PostgreSQL, ngrok)
 
 ---
@@ -141,12 +169,12 @@ Cosoul.AI/
 ├── apps/
 │   ├── web/                    # Next.js 16 Web应用 + API路由
 │   │   └── app/
-│   │       ├── api/            # 后端API（任务、握手、LLM、Embedding）
-│   │       ├── feed/           # 瀑布流页
-│   │       ├── publish/        # 发布需求页
-│   │       ├── messages/       # 消息交互页
-│   │       ├── cards/          # 发现页
-│   │       └── profile/        # 个人主页
+│   │       ├── api/            # 后端API（分身、任务、联系人、握手、LLM、Embedding）
+│   │       ├── home/           # 首页（AI社区入口，预留）
+│   │       ├── discover/       # 发现页（动态信息流，预留）
+│   │       ├── publish/        # 发布页（创建Task，未来扩展多媒体发布）
+│   │       ├── messages/       # 消息页（含分身切换 + 联系人）
+│   │       └── profile/        # 个人主页（含分身管理）
 │   └── native/                 # Expo 55 移动端应用
 ├── packages/
 │   ├── ui/                     # 跨平台UI组件库
@@ -155,17 +183,39 @@ Cosoul.AI/
 │       └── src/
 │           ├── fsm/            # 状态机 + Schema
 │           ├── dispatcher/     # L0/L1/L2 匹配漏斗
-│           ├── llm/            # 多厂商LLM适配
+│           ├── llm/            # 多厂商LLM适配（BaseModel抽象）
 │           ├── rag/            # Embedding + 向量检索
 │           ├── protocol/       # 握手协议 + 幂等
 │           ├── storage/        # PostgreSQL + task.md 持久化
-│           ├── memory/         # 记忆压缩 + 上下文管理
+│           ├── memory/         # Memory Flush + 上下文管理
 │           ├── intake/         # 多轮对话需求收集
 │           └── skills/         # Skill路由（预留）
-├── .data/                      # Agent本地数据（task.md等）
+├── .data/                      # Agent本地数据（per-persona目录）
+│   └── <persona_id>/           # 每个分身独立目录
+│       ├── User.md             # 人格偏好档案
+│       ├── raw_chats_summary/  # 精炼摘要（参与Embedding/RAG）
+│       └── task_agents/        # 任务实例（task.md + task_summary.md）
 ├── .devcontainer/              # 云开发环境配置
 ├── docs/                       # 项目文档
 └── drizzle.config.ts           # 数据库迁移配置
+```
+
+---
+
+## 数据库核心表
+
+```sql
+users          — 用户账号
+personas       — AI分身（一个用户多个分身，含name/avatar/bio/settings）
+persona_profiles — 分身偏好档案（User.md的结构化派生）
+tasks          — 任务（属于某个分身，含FSM状态、匹配条件）
+task_summaries — 任务摘要（可跨任务复用）
+task_vectors   — Embedding向量索引（pgvector HNSW）
+contacts       — 联系人（分身级别好友关系 + AI备注）
+handshake_logs — 握手日志
+chat_messages  — 聊天消息（人-人/Agent-Agent/混合模式）
+memory_summaries — 记忆摘要（参与RAG检索）
+idempotency_keys — 幂等控制（TTL 7天）
 ```
 
 ---

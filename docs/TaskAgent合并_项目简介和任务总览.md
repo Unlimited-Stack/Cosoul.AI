@@ -27,14 +27,19 @@
 └── AI分身C "健身搭子"     → User_C.md → [任务4, 任务5, 联系人...]
 ```
 
-### 1.2 页面结构（4 Tab）
+### 1.2 页面结构（5 Tab）
 
-| Tab | 页面 | 功能 |
-|-----|------|------|
-| **Messages** | 消息首页 | 当前分身下所有对话消息历史条（类似社交软件），支持分身切换查看不同消息 |
-| **Tasks** | 任务中心 | 监控当前分身下 Agent 工作进展，Agent 可能需要用户补充更多细节；也可创建新任务 |
-| **Contacts** | 联系人 | 当前分身的联系人列表 + 好友请求，每个好友有 AI 生成的仅自己可见的备注（添加时间、原因等） |
-| **Profile** | 个人主页 | 各分身的展示面信息 + 偏好信息，类似社交软件主页（头像、简介、照片等），可查看 AI 总结的用户侧写 User.md |
+AI 分身功能是当前版本的核心体验，但整体产品定位为 **AI 社区**，因此预留首页和发现 Tab 供后续社区功能扩展。
+
+| Tab | 页面 | 功能 | 当前版本 |
+|-----|------|------|----------|
+| **首页** | AI 社区首页 | 未来 AI 社区入口，承载社区核心功能（推荐、热门、广场等） | 预留，暂不开发 |
+| **发现** | 发现/动态 | 关注的人/博主动态信息流（类似朋友圈/关注动态） | 预留，暂不开发 |
+| **发布** | 发布中心 | 创建新 Task 任务（AI 分身多轮对话收集需求）；未来扩展：发帖、视频、多媒体等发布功能 | **核心功能**：仅负责创建任务 |
+| **消息** | 消息 + 联系人 | 顶部分身切换器，切换后展示对应分身的任务消息列表和 Agent 聊天框；同时包含联系人列表与好友请求管理 | **核心功能** |
+| **我的** | 个人主页 | 各分身的展示面信息 + 偏好信息，类似社交软件主页（头像、简介、照片等），可查看 AI 总结的用户侧写 User.md | **核心功能** |
+
+> **设计理念**：发布 Tab 只负责"创建"，消息 Tab 负责"交互+联系人"，我的 Tab 负责"管理"。任务创建后自动进入 Agent 流程，用户在消息 Tab 通过切换分身查看各任务进展和 Agent 对话。
 
 ---
 
@@ -84,34 +89,35 @@ Task-Agents_ai 是一个**数字孪生 Agent 双向撮合系统**，核心能力
 ### 3.1 合并三大部分
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                     Cosoul.AI + TaskAgent                     │
-│                                                               │
-│  ┌─────────────┐                                              │
-│  │  Persona层   │ ← 用户选择/切换 AI 分身                      │
-│  │  (多分身管理) │                                              │
-│  └──────┬──────┘                                              │
-│         ▼                                                     │
-│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐      │
-│  │  Part 1       │   │  Part 2       │   │  Part 3       │     │
-│  │  Tasks页面    │──→│  Agent搜寻    │──→│  Messages页面  │     │
-│  │  创建/管理任务 │   │  L0/L1/L2链  │   │  四种交互逻辑  │     │
-│  └──────────────┘   └──────────────┘   └──────────────┘      │
-│                                                               │
-│  ┌──────────────┐   ┌──────────────┐                          │
-│  │  Contacts     │   │  Profile      │                         │
-│  │  联系人管理    │   │  分身展示面    │                         │
-│  └──────────────┘   └──────────────┘                          │
-│                                                               │
-│  ┌────────────────────────────────────────────────────────┐   │
-│  │              底层基础设施                                │   │
-│  │  BaseModel多厂商适配 │ Embedding │ Storage │ Memory     │   │
-│  └────────────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                     Cosoul.AI + TaskAgent                        │
+│                                                                  │
+│  5 Tab 产品结构：                                                  │
+│  ┌────────┐ ┌────────┐ ┌────────┐ ┌──────────────┐ ┌────────┐    │
+│  │ 首页    │ │ 发现    │ │ 发布   │ │  消息+联系人   │ │ 我的    │   │
+│  │(预留)   │ │(预留)   │ │创建任务 │ │ 分身切换查看   │ │分身管理 │    │
+│  └────────┘ └────────┘ └───┬────┘ └──────┬───────┘ └────────┘    │
+│                            │             │                       │
+│  ┌─────────────┐           │             │                       │
+│  │  Persona层   │ ← 用户选择/切换 AI 分身                           │
+│  │  (多分身管理) │                                                 │
+│  └──────┬──────┘                                                 │
+│         ▼                                                        │
+│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐          │
+│  │  Part 1      │   │  Part 2      │   │  Part 3      │          │
+│  │  发布Tab     │──→│  Agent搜寻    │──→│  消息Tab      │          │
+│  │  创建新任务    │   │  L0/L1/L2链  │   │  交互+联系人   │          │
+│  └──────────────┘   └──────────────┘   └──────────────┘          │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────┐      │
+│  │              底层基础设施                                │      │
+│  │  BaseModel多厂商适配 │ Embedding │ Storage │ Memory     │       │
+│  └────────────────────────────────────────────────────────┘      │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-#### Part 1：Tasks — 发布需求与Agent交互
-- 用户**选择当前AI分身**后，以该分身身份发布任务需求
+#### Part 1：发布 Tab — 创建任务与Agent交互
+- 用户**选择当前AI分身**后，在发布 Tab 以该分身身份创建任务需求
 - LLM 结合分身偏好（User.md）生成针对性引导问题
 - Agent 通过多轮对话收集结构化信息（Intake模块）
 - 对话关键信息提取保存为 `task_summary.md`（可用于相似任务快速调用和历史回溯）
@@ -127,14 +133,14 @@ Task-Agents_ai 是一个**数字孪生 Agent 双向撮合系统**，核心能力
   - 对于己方未提及但对方有的偏好，Agent可反问用户展现在握手报告中
 - 产出匹配报告（"已为您找到N个匹配结果"），开启双方对互相Agent的聊天权限
 
-#### Part 3：Messages — 消息页面四种交互（L2后续）
+#### Part 3：消息 Tab — 消息 + 联系人四种交互（L2后续）
 - **A人 - B人**：双方真人直接对话
 - **A_Agent - B_Agent**：双方Agent自动协商（握手协议）
 - **A_Agent - B人**：A的Agent主动联系B本人
 - **A人 - B_Agent**：A本人和B的Agent交互
 
 L2 完成 ACCEPT 后进入 Waiting_Human，用户可：
-- 满意 → 向对方发送好友申请 → 进入 Contacts
+- 满意 → 向对方发送好友申请 → 出现在消息 Tab 联系人列表
 - 不满意 → 修改 task.md 重新搜索
 - 多次完善和精筛后 → 优化生成最终版 task.md
 
@@ -162,20 +168,22 @@ Cosoul.AI/
 │           │   ├── handshake/route.ts          # [新增] 握手协议入口
 │           │   ├── llm/chat/route.ts           # [新增] LLM通用对话
 │           │   └── embedding/route.ts          # [新增] Embedding服务
-│           ├── messages/page.tsx               # [改造] 消息首页
-│           ├── tasks/page.tsx                  # [新增] 任务中心
-│           ├── contacts/page.tsx               # [新增] 联系人页
-│           └── profile/page.tsx                # [改造] 个人主页（含分身切换）
+│           ├── home/page.tsx                   # [新增] AI社区首页（预留）
+│           ├── discover/page.tsx               # [新增] 发现/动态（预留）
+│           ├── publish/page.tsx                # [改造] 发布中心（创建Task，未来扩展多媒体）
+│           ├── messages/page.tsx               # [改造] 消息+联系人（含分身切换）
+│           └── profile/page.tsx                # [改造] 个人主页（含分身管理）
 │
 ├── packages/
 │   ├── ui/src/
 │   │   └── screens/
-│   │       ├── MessageScreen.tsx               # [改造] 消息交互UI（含分身切换）
-│   │       ├── TaskScreen.tsx                  # [新增] 任务中心UI
-│   │       ├── TaskDetailScreen.tsx            # [新增] 任务详情UI
+│   │       ├── HomeScreen.tsx                  # [新增] AI社区首页（预留）
+│   │       ├── DiscoverScreen.tsx              # [新增] 发现/动态（预留）
+│   │       ├── PublishScreen.tsx               # [改造] 发布中心（创建Task入口）
 │   │       ├── TaskCreateScreen.tsx            # [新增] 创建任务（Intake对话）
+│   │       ├── MessageScreen.tsx               # [改造] 消息+联系人UI（含分身切换）
 │   │       ├── AgentChatScreen.tsx             # [新增] Agent对话UI
-│   │       ├── ContactScreen.tsx               # [新增] 联系人UI
+│   │       ├── TaskDetailScreen.tsx            # [新增] 任务详情UI
 │   │       └── ProfileScreen.tsx               # [改造] 个人主页（含分身管理）
 │   │
 │   └── task-agent/                             # [新增] Agent核心包
@@ -312,16 +320,16 @@ memory_summaries (id, persona_id, task_id, summary_text, source_log_id, turn_cou
 
 ```
 ┌─────────────────────────────────────────┐
-│            Agent / 业务调用方              │
-│     chat(role, data) / embed(text)       │
+│            Agent / 业务调用方             │
+│     chat(role, data) / embed(text)      │
 └──────────────┬──────────────────────────┘
                │
 ┌──────────────▼──────────────────────────┐
-│          BaseModel (抽象类)               │
-│  - chatOnce(messages): Promise<string>   │
-│  - chatStream(messages): AsyncGenerator  │
-│  - countTokens(text): number             │
-│  - conversation(): Conversation          │
+│          BaseModel (抽象类)              │
+│  - chatOnce(messages): Promise<string>  │
+│  - chatStream(messages): AsyncGenerator │
+│  - countTokens(text): number            │
+│  - conversation(): Conversation         │
 └──────────────┬──────────────────────────┘
                │
     ┌──────────┼──────────┐
@@ -345,26 +353,26 @@ interface AgentMessage {
 ### 4.4 数据流总览
 
 ```
-用户选择AI分身 → 发布需求 → Intake(多轮对话,结合User.md) → task.md + task_summary.md (Drafting)
+用户选择AI分身 → 发布Tab创建任务 → Intake(多轮对话,结合User.md) → task.md + task_summary.md (Drafting)
                                     │
                               ┌─────▼─────┐
-                              │ Searching  │
+                              │ Searching │
                               └─────┬─────┘
                                     │
                     ┌───────────────┼───────────────┐
                     ▼               ▼               ▼
-              L0 硬过滤      L1 Embedding       向量搜索
-             (PostgreSQL)    (DashScope)    (pgvector索引)
+                L0 硬过滤      L1 Embedding       向量搜索
+               (PostgreSQL)    (DashScope)    (pgvector索引)
                     │               │               │
                     └───────────────┼───────────────┘
                                     ▼
-                              候选池 Top-K
+                               候选池 Top-K
                                     │
                               ┌─────▼──────┐
-                              │ Negotiating │ ← L2 Agent对Agent谈判
+                              │ Negotiating│ ← L2 Agent对Agent谈判
                               └─────┬──────┘
                                     │
-                            双方ACCEPT
+                                双方ACCEPT
                                     │
                            ┌────────▼────────┐
                            │ Waiting_Human   │
@@ -372,7 +380,7 @@ interface AgentMessage {
                                     │
                         ┌───────────┼───────────┐
                         ▼           ▼           ▼
-                     满意→Closed→好友申请→Contacts  不满→Revising  挂起→Listening
+                     满意→Closed→好友申请→消息Tab联系人  不满→Revising  挂起→Listening
 ```
 
 ---
@@ -479,11 +487,12 @@ interface AgentMessage {
 - [ ] Prompt模板编写
 
 ### 前端交互层
-- [ ] Messages 页面 — 消息列表 + 分身切换 + 四种交互模式
-- [ ] Tasks 页面 — 任务列表 + 创建任务（Intake对话）+ 任务详情
-- [ ] Contacts 页面 — 联系人列表 + 好友请求 + AI好友备注
-- [ ] Profile 页面 — 分身管理 + 展示面编辑 + User.md 查看修改
-- [ ] Waiting_Human阶段产品逻辑（满意→好友申请→Contacts）
+- [ ] 首页 Tab — AI 社区首页（预留，当前版本 placeholder）
+- [ ] 发现 Tab — 发现/动态信息流（预留，当前版本 placeholder）
+- [ ] 发布 Tab — 创建新 Task（Intake 对话）；未来扩展发帖、视频等多媒体发布
+- [ ] 消息 Tab — 顶部分身切换器 + 消息列表 + 联系人列表 + 好友请求 + 四种交互模式
+- [ ] 我的 Tab — 分身管理 + 展示面编辑 + User.md 查看修改
+- [ ] Waiting_Human阶段产品逻辑（满意→好友申请→联系人）
 - [ ] Agent对话实时展示（SSE流式）
 
 ### Skills与扩展

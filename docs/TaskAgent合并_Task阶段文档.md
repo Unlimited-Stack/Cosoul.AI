@@ -20,8 +20,8 @@
 ```
 Phase 1 (A) ─────────────────────┐
 Phase 2 (C) ──┐                  │
-               ├→ Phase 4 (C)    ├→ Phase 7 (A)  ──→ Phase 10 (A+B)
-Phase 3 (A) ──┘        │        │       │
+              ├→ Phase 4 (C)     ├→ Phase 7 (A)  ──→ Phase 10 (A+B)
+Phase 3 (A) ──┘         │        │       │
                         ▼        │       ▼
                   Phase 5 (C) ───┘  Phase 8 (C)  ──→ Phase 11 (A+C)
                         │                │
@@ -313,11 +313,11 @@ Phase 3 (A) ──┘        │        │       │
 
 ---
 
-## Phase 6：Tasks 页面与 Intake 对话（前端 Part 1）
+## Phase 6：发布 Tab 与 Intake 对话（前端 Part 1）
 **负责人：工程师B** | **预估：2.5天** | **前置依赖：Phase 4（Schema定义完成即可开始）**
 
 ### 目标
-实现 Tasks 页面（任务中心）和 Intake 多轮对话交互，含分身选择。
+实现发布 Tab（创建新任务）和 Intake 多轮对话交互，含分身选择。发布 Tab 当前版本仅负责创建 Task，未来扩展发帖、视频等多媒体发布功能。
 
 ### 任务清单
 
@@ -330,12 +330,12 @@ Phase 3 (A) ──┘        │        │       │
   - 检查是否有历史相似任务的 task_summary 可快速调用
   - 返回 { task: TaskDocument, taskSummary: string, transcript: Message[] }
 
-#### Tasks 页面 UI
-- [ ] 创建 `packages/ui/src/screens/TaskScreen.tsx`（任务中心）：
+#### 发布 Tab UI
+- [ ] 创建 `packages/ui/src/screens/PublishScreen.tsx`（发布中心）：
   - 顶部分身切换器（显示当前分身名称 + 头像，可切换）
-  - 任务列表（当前分身下所有任务，按状态分组/筛选）
-  - 每个任务卡片显示：任务摘要、状态标签、Agent最新进展
-  - "创建新任务" 按钮 → 进入 TaskCreateScreen
+  - 主入口："创建新任务" → 进入 TaskCreateScreen
+  - 未来扩展区域预留：发帖、视频等多媒体发布入口（当前版本不开发）
+  - 最近创建的任务快捷入口（跳转至消息 Tab 对应任务）
 - [ ] 创建 `packages/ui/src/screens/TaskCreateScreen.tsx`（创建任务 / Intake对话）：
   - 聊天气泡式交互区（Agent提问 + 用户回答）
   - Agent 结合当前分身 User.md 偏好生成引导问题
@@ -347,12 +347,12 @@ Phase 3 (A) ──┘        │        │       │
     - detailedPlan 展开详情
   - 确认按钮（"开始匹配"）和编辑按钮（"继续调整"）
   - Agent可能在任务进行中需要用户补充更多细节（通过聊天形式）
-- [ ] 适配Web端：`apps/web/app/tasks/page.tsx`
-- [ ] 适配移动端：Tab导航中的 Tasks 入口
+- [ ] 适配Web端：`apps/web/app/publish/page.tsx`
+- [ ] 适配移动端：Tab导航中的 发布 入口
 - [ ] 对接后端 API（Phase 7完成后联调）：
   - `POST /api/task` — 创建任务（含 persona_id）
   - `POST /api/llm/chat` — Intake对话
-  - `GET /api/task?persona_id=xxx` — 获取分身下任务列表
+  - `GET /api/task?persona_id=xxx` — 获取分身下任务列表（用于最近创建快捷入口）
 
 #### 样式与交互
 - [ ] 聊天气泡样式（用户右侧蓝色，Agent左侧灰色）
@@ -491,25 +491,47 @@ Phase 3 (A) ──┘        │        │       │
 
 ---
 
-## Phase 9：Messages / Contacts / Profile 页面改造（前端 Part 3）
+## Phase 9：消息 Tab / 我的 Tab / 预留页面（前端 Part 3）
 **负责人：工程师B** | **预估：3.5天** | **前置依赖：Phase 6, Phase 7**
 
 ### 目标
-实现 Messages（含分身切换）、Contacts、Profile（含分身管理）三个页面。
+实现 5 Tab 架构：消息 Tab（合并消息+联系人，含分身切换）、我的 Tab（分身管理）、以及首页/发现两个预留 Tab。
 
 ### 任务清单
 
-#### 消息列表页（`MessageScreen.tsx` 改造）
-- [ ] 顶部分身切换器（与 Tasks 页共用组件）
+#### 首页 Tab（`HomeScreen.tsx` 新建 — 预留）
+- [ ] AI 社区首页 placeholder 页面
+  - 品牌 Logo + 简介
+  - "敬请期待" 或 "AI 社区即将上线" 占位
+  - 后续承载：推荐内容、热门匹配、社区广场等
+
+#### 发现 Tab（`DiscoverScreen.tsx` 新建 — 预留）
+- [ ] 发现/动态 placeholder 页面
+  - "敬请期待" 占位
+  - 后续承载：关注的人/博主动态信息流
+
+#### 消息 Tab（`MessageScreen.tsx` 改造 — 核心）
+
+**消息+联系人合并设计**：顶部分身切换器，切换后展示对应分身的所有任务消息和 Agent 聊天；联系人作为消息 Tab 内的子模块。
+
+- [ ] 顶部分身切换器（与发布 Tab 共用组件）：
+  - 显示当前分身名称 + 头像，点击可切换
+  - 切换分身后刷新消息列表和联系人
 - [ ] 消息列表 UI：
   - 显示**当前分身**下的所有对话消息历史条（类似社交软件）
   - 每条消息显示：对方头像、名称、最新消息摘要、时间、未读标记
   - 区分消息类型标签：人-人、Agent-Agent、Agent-人、人-Agent
   - 任务状态角标（Negotiating、Waiting_Human、Closed等）
   - 下拉刷新 + 上拉加载更多
-  - 切换分身时刷新消息列表
-- [ ] 消息分类Tab：
-  - "全部" | "匹配中" | "已完成" | "Agent自动"
+- [ ] 页内分类 Tab：
+  - "消息" | "联系人" （页内二级切换）
+  - 消息列表下可进一步筛选："全部" | "匹配中" | "已完成" | "Agent自动"
+- [ ] 联系人子模块（页内"联系人"Tab）：
+  - 当前分身下联系人列表
+  - 每个好友显示：头像、名称、AI生成的好友备注（仅自己可见，含添加时间、原因等）
+  - 好友请求管理（接受/拒绝）
+  - 好友搜索功能（通过历史对话、添加原因等关键词查找）
+  - 点击联系人 → 进入聊天界面
 
 #### 对话详情页（`AgentChatScreen.tsx` 新建）
 - [ ] 聊天界面：
@@ -546,7 +568,7 @@ Phase 3 (A) ──┘        │        │       │
   - 每个结果显示：对方 targetActivity + targetVibe + 匹配度分数 + 协商历史摘要
   - 展示未握手确定的偏好（Agent反问项）
 - [ ] 操作按钮：
-  - "满意，发送好友申请" → Closed → 创建 Contact
+  - "满意，发送好友申请" → Closed → 创建联系人
   - "不满意，重新搜索" → Revising（可跳转修改 task.md）
   - "后台挂起继续找" → Listening
   - "取消任务" → Cancelled
@@ -554,14 +576,7 @@ Phase 3 (A) ──┘        │        │       │
   - 展示挂起期间收到的所有提案
   - 每个提案显示匹配度和摘要
 
-#### Contacts 页面（`ContactScreen.tsx` 新建）
-- [ ] 当前分身下联系人列表
-- [ ] 每个好友显示：头像、名称、AI生成的好友备注（仅自己可见，含添加时间、原因等）
-- [ ] 好友请求管理（接受/拒绝）
-- [ ] 好友搜索功能（通过历史对话、添加原因等关键词查找）
-- [ ] 点击联系人 → 进入聊天界面
-
-#### Profile 页面改造（`ProfileScreen.tsx`）
+#### 我的 Tab（`ProfileScreen.tsx` 改造）
 - [ ] 分身管理区域：
   - 分身列表（卡片展示，可切换）
   - 创建新分身
@@ -579,10 +594,10 @@ Phase 3 (A) ──┘        │        │       │
 - [ ] 当前状态操作按钮
 
 ### 交付标准
+- 5 Tab 导航结构完整（首页/发现预留，发布/消息/我的 功能可用）
+- 消息 Tab 内分身切换正确，消息和联系人二级Tab切换自然
 - 四种消息交互模式切换自然
-- 分身切换在 Messages / Tasks 页面联动正确
-- Contacts 好友管理流程完整
-- Profile 分身管理 + User.md 查看修改正常
+- 我的 Tab 分身管理 + User.md 查看修改正常
 - 跨平台一致
 
 ---
@@ -734,7 +749,7 @@ Phase 3 (A) ──┘        │        │       │
 
 #### 端到端流程测试（全员）
 - [ ] **场景1：完整主动流**
-  1. 用户A在发布页创建任务 → Intake对话 → 生成task.md(Drafting)
+  1. 用户A在发布Tab创建任务 → Intake对话 → 生成task.md(Drafting)
   2. 自动转入Searching → L0过滤 → L1向量检索
   3. 找到匹配 → 发送PROPOSE → 进入Negotiating
   4. 对方Agent ACCEPT → 进入Waiting_Human
@@ -764,9 +779,9 @@ Phase 3 (A) ──┘        │        │       │
   1. Waiting_Human → Listening → 后台接收多个提案
   2. 恢复后查看报告 → 选择最优匹配
 
-- [ ] **场景7：匹配成功 → 好友申请 → Contacts**
+- [ ] **场景7：匹配成功 → 好友申请 → 消息Tab联系人**
   1. 匹配成功 → 用户确认 → 发送好友申请
-  2. 对方接受 → 双方进入 Contacts 联系人列表
+  2. 对方接受 → 双方在消息Tab联系人子模块可见
   3. 验证 AI 好友备注自动生成
 
 #### 故障测试（工程师A + C）
@@ -776,8 +791,9 @@ Phase 3 (A) ──┘        │        │       │
 - [ ] 乐观锁冲突 → 重读重试
 
 #### 前端联调（工程师B）
-- [ ] 发布页 → 后端API → 任务创建流程
-- [ ] 消息页 → 四种交互模式真实数据
+- [ ] 发布Tab → 后端API → 任务创建流程
+- [ ] 消息Tab → 四种交互模式真实数据 + 联系人子模块
+- [ ] 5 Tab 导航 → 首页/发现预留页正常展示
 - [ ] 状态变更 → 前端实时更新
 - [ ] SSE流式 → Agent回复流畅
 
@@ -803,13 +819,13 @@ Week 1:
 ├── Day 1-2:  Phase 2 (C) — LLM Provider      ← 与Phase 3并行
 ├── Day 1-2:  Phase 3 (A) — PostgreSQL + Storage ← 与Phase 2并行
 ├── Day 3:    Phase 4 (C) — FSM + Schema
-├── Day 4-5:  Phase 6 (B) — 发布需求页面UI     ← Phase 4完成后开始
+├── Day 4-5:  Phase 6 (B) — 发布Tab + Intake对话  ← Phase 4完成后开始
 
 Week 2:
 ├── Day 1-3:  Phase 5 (C) — Dispatcher L0/L1/L2
 ├── Day 2-3:  Phase 7 (A) — 后端API路由
 ├── Day 3-4:  Phase 8 (C) — 记忆系统
-├── Day 3-5:  Phase 9 (B) — 消息页面改造
+├── Day 3-5:  Phase 9 (B) — 消息Tab+我的Tab+预留页面
 
 Week 3:
 ├── Day 1-2:  Phase 10 (A+B) — 握手协议网络对接
@@ -829,7 +845,7 @@ Week 3:
 | Phase 4 完成 | FSM迁移测试100%通过 | 阻塞Phase 5, 6 |
 | Phase 5 完成 | L0→L1→L2链路mock跑通 | 阻塞Phase 7, 10 |
 | Phase 7 完成 | API curl测试全通 | 阻塞前后端联调 |
-| Phase 9 完成 | 消息页4种模式可切换 | 阻塞Phase 10 |
+| Phase 9 完成 | 消息Tab 4种模式可切换 + 联系人子模块 + 5Tab导航完整 | 阻塞Phase 10 |
 | Phase 13 完成 | 7个E2E场景通过 | **初级Demo可演示** |
 
 ---
