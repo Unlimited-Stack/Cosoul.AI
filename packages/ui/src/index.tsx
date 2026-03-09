@@ -13,7 +13,7 @@ export {
 // Screens
 export { MessageScreen } from "./screens/MessageScreen";
 export { FeedScreen } from "./screens/FeedScreen";
-export { AiCoreScreen, type AiCoreScreenProps } from "./screens/AiCoreScreen";
+export { AiCoreScreen } from "./screens/AiCoreScreen";
 export { CardsScreen } from "./screens/CardsScreen";
 export { ProfileScreen, type ProfileScreenProps } from "./screens/ProfileScreen";
 export { SettingsScreen, type SettingsScreenProps } from "./screens/SettingsScreen";
