@@ -1,10 +1,10 @@
 import type { Interface } from "node:readline/promises";
 import { collectInitialTaskFromUser } from "./intake";
-import { processDraftingTask, processSearchingTask, processWaitingHumanTask } from "./dispatcher";
+import { processDraftingTask, processSearchingTask } from "./dispatcher";
 import { appendRawChat, appendRawChatSummary, readTaskDocument, saveTaskMD } from "./util/storage";
 import type { TaskDocument, TaskStatus } from "./util/schema";
 
-type RunnableTaskState = "Drafting" | "Revising" | "Searching" | "Waiting_Human";
+type RunnableTaskState = "Drafting" | "Revising" | "Searching";
 
 interface StartTaskLoopOptions {
   activeTaskId?: string | null;
@@ -101,15 +101,13 @@ export async function runTaskStep(task: TaskDocument, rl?: Interface): Promise<b
       return processDraftingTask(task);
     case "Searching":
       return processSearchingTask(task);
-    case "Waiting_Human":
-      return processWaitingHumanTask(task, rl);
     default:
       return false;
   }
 }
 
 function isRunnableStatus(status: TaskStatus): status is RunnableTaskState {
-  return status === "Drafting" || status === "Revising" || status === "Searching" || status === "Waiting_Human";
+  return status === "Drafting" || status === "Revising" || status === "Searching";
 }
 
 async function sleep(ms: number): Promise<void> {

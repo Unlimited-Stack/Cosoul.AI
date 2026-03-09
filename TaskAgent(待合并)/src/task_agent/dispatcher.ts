@@ -1,6 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { stdin as input, stdout as output } from "node:process";
-import { createInterface, type Interface } from "node:readline/promises";
 import { searchByVector } from "../rag/retrieval";
 import { readAllTaskVectors } from "./util/sqlite";
 import {
@@ -46,12 +44,26 @@ import { start_chat, send_friend_request } from "./friend";
 
 export type WaitingHumanIntent = "satisfied" | "unsatisfied" | "enable_listener" | "closed" | "friend_request" | "exit";
 
+/**
+ * Waiting_Human 入口原因，用于前端区分展示不同 UI 和可用操作按钮。
+ * Phase 3（PostgreSQL）后将由 tasks 表的 waiting_reason 字段落库，当前版本依赖握手快照推断。
+ */
+export type WaitingHumanReason =
+  | "no_candidates"           // Searching: L1 检索返回空，无候选对象
+  | "match_found"             // Negotiating: 至少一个候选双方 ACCEPT
+  | "no_match_negotiating"    // Negotiating: 所有候选均被拒绝
+  | "resumed_from_listening"; // Listening: 用户主动恢复（Phase 3 后由 DB 字段区分）
+
 export interface WaitingHumanSummary {
   taskId: string;
   status: TaskStatus;
   targetActivity: string;
   targetVibe: string;
   snapshot: Awaited<ReturnType<typeof readLatestHandshakeExchange>>;
+  /** 入口原因，决定前端展示哪种 UI 和可用操作列表。 */
+  reason: WaitingHumanReason;
+  /** 当前 reason 下允许的用户操作（前端据此渲染操作按钮）。 */
+  availableIntents: WaitingHumanIntent[];
 }
 
 export interface WaitingHumanIntentResult {
@@ -100,6 +112,9 @@ export async function processSearchingTasks(): Promise<void> {
   for (const task of searchingTasks) {
     const l1 = await runL1Retrieval(task);
     if (l1.length === 0) {
+      await transitionTaskStatus(task.frontmatter.task_id, "Waiting_Human", {
+        expectedVersion: task.frontmatter.version
+      });
       continue;
     }
 
@@ -112,75 +127,6 @@ export async function processSearchingTasks(): Promise<void> {
     await transitionTaskStatus(task.frontmatter.task_id, "Waiting_Human", {
       expectedVersion: task.frontmatter.version
     });
-  }
-}
-
-/**
- * 处理 Waiting_Human 任务：向用户展示“最近一次握手（L2 决策）的摘要”，并询问是否满意。
- *
- * 业务目的：
- * - Waiting_Human 表示“机器已经完成协商/匹配到某个阶段，需要人类确认/介入”
- * - 这里把握手收发日志（inbound/outbound）整理成可读摘要，给 owner 做 yes/no 决策
- *
- * 用户选择：
- * - 满意（yes/y）：进入下一阶段 `start_chat(taskId)`（当前占位，不实现具体聊天内容）
- * - 不满意（no/n）：把任务状态退回 Drafting，让用户修改 task.md 后再走匹配流程
- *
- * 注意：
- * - 该处理依赖 TTY（交互式终端）。非 TTY 环境直接跳过，避免服务/CI 卡死等待输入。
- * - 状态回退使用 `transitionTaskStatus()`（会自动 bump version/updated_at 等），无需额外“读改写”函数。
- 
-
-
- * //等待人类确认操作，反馈结果，此处还要后续修改，根据前端跳转进行逻辑更改，暂时不用看
- */
-export async function processWaitingHumanTasks(rl?: Interface): Promise<void> {
-  if (!rl && !input.isTTY) {
-    return;
-  }
-
-  const tasks = await listTasksByStatuses(["Waiting_Human"]);
-  if (tasks.length === 0) {
-    return;
-  }
-
-  const localRl = rl ?? createInterface({ input, output });
-  const shouldClose = rl === undefined;
-  try {
-    for (const task of tasks) {
-      const snapshot = await readLatestHandshakeExchange(task.frontmatter.task_id);
-      const summary = formatHandshakeSummary(task, snapshot);
-
-      output.write(`\n===== Waiting_Human: 需要你确认握手结果 =====\n`);
-      output.write(`${summary}\n`);
-
-      const answer = (await localRl.question("是否满意本次握手结果？输入 yes 进入聊天；输入 no 退回 Drafting："))
-        .trim()
-        .toLowerCase();
-      if (answer === "yes" || answer === "y") {
-        await start_chat(task.frontmatter.task_id);
-        continue;
-      }
-
-      if (answer === "no" || answer === "n") {
-        try {
-          await transitionTaskStatus(task.frontmatter.task_id, "Drafting", {
-            expectedVersion: task.frontmatter.version,
-            traceId: "waiting_human",
-            messageId: "owner"
-          });
-        } catch (error) {
-          output.write(`状态回退失败（可能是并发更新导致版本冲突）：${normalizeErrorMessage(error)}\n`);
-        }
-        continue;
-      }
-
-      output.write("输入无效，跳过该任务（保持 Waiting_Human）。\n");
-    }
-  } finally {
-    if (shouldClose) {
-      localRl.close();
-    }
   }
 }
 
@@ -200,7 +146,10 @@ export async function processSearchingTask(task: TaskDocument): Promise<boolean>
   }
   const l1 = await runL1Retrieval(task);
   if (l1.length === 0) {
-    return false;
+    await transitionTaskStatus(task.frontmatter.task_id, "Waiting_Human", {
+      expectedVersion: task.frontmatter.version
+    });
+    return true;
   }
   const proposeSent = await sendInitialPropose(task.frontmatter.task_id, l1[0].taskId);
   if (!proposeSent) {
@@ -213,81 +162,110 @@ export async function processSearchingTask(task: TaskDocument): Promise<boolean>
 }
 
 
-//等待人类确认操作，反馈结果，此处还要后续修改，根据前端跳转进行逻辑更改，暂时不用看
-export async function processWaitingHumanTask(task: TaskDocument, rl?: Interface): Promise<boolean> {
-  if (task.frontmatter.status !== "Waiting_Human") {
-    return false;
+/**
+ * 根据握手快照推断 Waiting_Human 入口原因。
+ * Phase 3（PostgreSQL）后改为直接读取 tasks.waiting_reason 字段，无需推断。
+ */
+function inferWaitingHumanReason(
+  snapshot: Awaited<ReturnType<typeof readLatestHandshakeExchange>>
+): WaitingHumanReason {
+  if (!snapshot.inbound && !snapshot.outbound) {
+    return "no_candidates";
   }
-  if (!rl && !input.isTTY) {
-    return false;
+  if (snapshot.inbound?.action === "ACCEPT" && snapshot.outbound?.action === "ACCEPT") {
+    return "match_found";
   }
-  const localRl = rl ?? createInterface({ input, output });
-  const shouldClose = rl === undefined;
-  try {
-    const snapshot = await readLatestHandshakeExchange(task.frontmatter.task_id);
-    const summary = formatHandshakeSummary(task, snapshot);
-    output.write(`\n===== Waiting_Human: 需要你确认握手结果 =====\n`);
-    output.write(`${summary}\n`);
-    const answer = (await localRl.question("是否满意本次握手结果？yes 进入聊天 / no 退回 Drafting / q 退出："))
-      .trim()
-      .toLowerCase();
-    if (answer === "yes" || answer === "y") {
-      await start_chat(task.frontmatter.task_id);
-      return true;
-    }
-    if (answer === "no" || answer === "n") {
-      await transitionTaskStatus(task.frontmatter.task_id, "Drafting", {
-        expectedVersion: task.frontmatter.version
-      });
-      return true;
-    }
-    if (answer === "q" || answer === "quit" || answer === "exit" || answer === "退出") {
-      return false;
-    }
-    return false;
-  } finally {
-    if (shouldClose) localRl.close();
+  return "no_match_negotiating";
+}
+
+/**
+ * 根据入口原因返回前端允许展示的操作列表。
+ * - no_candidates / no_match_negotiating：无匹配结果，不允许 satisfied / friend_request
+ * - match_found / resumed_from_listening：有匹配结果，全部操作可用
+ */
+function resolveAvailableIntents(reason: WaitingHumanReason): WaitingHumanIntent[] {
+  switch (reason) {
+    case "no_candidates":
+    case "no_match_negotiating":
+      return ["unsatisfied", "enable_listener", "closed"];
+    case "match_found":
+    case "resumed_from_listening":
+      return ["satisfied", "unsatisfied", "friend_request", "enable_listener", "closed"];
   }
 }
 
 export async function getWaitingHumanSummary(taskId: string): Promise<WaitingHumanSummary> {
   const task = await readTaskDocument(taskId);
   const snapshot = await readLatestHandshakeExchange(taskId);
+  const reason = inferWaitingHumanReason(snapshot);
   return {
     taskId,
     status: task.frontmatter.status,
     targetActivity: task.body.targetActivity,
     targetVibe: task.body.targetVibe,
-    snapshot
+    snapshot,
+    reason,
+    availableIntents: resolveAvailableIntents(reason)
   };
 }
 
+/**
+ * 处理 Waiting_Human 状态下的用户意图（唯一执行入口，替代已删除的 CLI 版本）。
+ *
+ * 合并自原 processWaitingHumanTask（CLI readline 版），逻辑改进：
+ * - 根据 reason 校验 intent 合法性，防止无意义操作（如无匹配时执行 satisfied）
+ * - unsatisfied → Revising（而非 Drafting），符合 FSM 迁移表
+ *
+ * 调用方：
+ * - runtime.ts：CLI run 命令的 Waiting_Human 分支
+ * - listener.ts：HTTP POST /tasks/:taskId/waiting-human-intent
+ */
 export async function handleWaitingHumanIntent(taskId: string, intent: WaitingHumanIntent): Promise<WaitingHumanIntentResult> {
   const task = await readTaskDocument(taskId);
   if (task.frontmatter.status !== "Waiting_Human") {
-    return { taskId, intent, statusChanged: false, nextStatus: task.frontmatter.status, message: `Task is not Waiting_Human: ${task.frontmatter.status}` };
+    return {
+      taskId, intent,
+      statusChanged: false,
+      nextStatus: task.frontmatter.status,
+      message: `任务当前不在 Waiting_Human 状态：${task.frontmatter.status}`
+    };
   }
+
+  // 根据入口原因校验 intent 合法性（exit 始终允许）
+  const snapshot = await readLatestHandshakeExchange(taskId);
+  const reason = inferWaitingHumanReason(snapshot);
+  const allowed = resolveAvailableIntents(reason);
+  if (intent !== "exit" && !allowed.includes(intent)) {
+    return {
+      taskId, intent,
+      statusChanged: false,
+      nextStatus: task.frontmatter.status,
+      message: `当前状态（reason=${reason}）不支持操作 "${intent}"，可用操作：${allowed.join(", ")}`
+    };
+  }
+
   if (intent === "satisfied") {
     await start_chat(taskId);
-    return { taskId, intent, statusChanged: false, nextStatus: task.frontmatter.status, message: "Accepted; start_chat invoked." };
+    return { taskId, intent, statusChanged: false, nextStatus: task.frontmatter.status, message: "已接受匹配，start_chat 已触发。" };
   }
   if (intent === "unsatisfied") {
-    await transitionTaskStatus(taskId, "Drafting", { expectedVersion: task.frontmatter.version });
-    return { taskId, intent, statusChanged: true, nextStatus: "Drafting", message: "Moved back to Drafting." };
+    // Waiting_Human → Revising（用户修改需求后重新进入 Searching）
+    await transitionTaskStatus(taskId, "Revising", { expectedVersion: task.frontmatter.version });
+    return { taskId, intent, statusChanged: true, nextStatus: "Revising", message: "已进入 Revising，请修改任务需求后重新匹配。" };
   }
   if (intent === "closed") {
     await transitionTaskStatus(taskId, "Closed", { expectedVersion: task.frontmatter.version });
-    return { taskId, intent, statusChanged: true, nextStatus: "Closed", message: "Task closed." };
+    return { taskId, intent, statusChanged: true, nextStatus: "Closed", message: "任务已关闭。" };
   }
   if (intent === "enable_listener") {
     await transitionTaskStatus(taskId, "Listening", { expectedVersion: task.frontmatter.version });
-    return { taskId, intent, statusChanged: true, nextStatus: "Listening", message: "Moved to Listening." };
+    return { taskId, intent, statusChanged: true, nextStatus: "Listening", message: "任务已进入后台监听模式。" };
   }
   if (intent === "friend_request") {
     await send_friend_request(taskId, task.frontmatter.current_partner_id);
-    return { taskId, intent, statusChanged: false, nextStatus: task.frontmatter.status, message: "Friend request sent." };
+    return { taskId, intent, statusChanged: false, nextStatus: task.frontmatter.status, message: "好友申请已发送。" };
   }
-  return { taskId, intent, statusChanged: false, nextStatus: task.frontmatter.status, message: "Exit." };
+  return { taskId, intent, statusChanged: false, nextStatus: task.frontmatter.status, message: "已退出，任务保持 Waiting_Human。" };
 }
 
 export async function getListeningReportForTask(taskId: string): Promise<ListeningReport> {
@@ -634,51 +612,6 @@ function isStatusOneOf(status: TaskStatus, statuses: TaskStatus[]): boolean {
   return statuses.includes(status);
 }
 
-function formatHandshakeSummary(
-  task: TaskDocument,
-  snapshot: Awaited<ReturnType<typeof readLatestHandshakeExchange>>
-): string {
-  const lines: string[] = [];
-  lines.push(`task_id: ${task.frontmatter.task_id}`);
-  lines.push(`status: ${task.frontmatter.status}`);
-  lines.push(`target_activity: ${task.body.targetActivity}`);
-  lines.push(`target_vibe: ${task.body.targetVibe}`);
-
-  if (!snapshot.inbound && !snapshot.outbound) {
-    lines.push("");
-    lines.push("（未读取到握手日志：可能尚未写入 agent_chat，或日志文件为空）");
-    return lines.join("\n");
-  }
-
-  if (snapshot.sourceFilePath) {
-    lines.push(`agent_chat_source: ${snapshot.sourceFilePath}`);
-  }
-
-  if (snapshot.inbound) {
-    lines.push("");
-    lines.push("[Inbound]");
-    lines.push(`from: ${snapshot.inbound.sender_agent_id} -> ${snapshot.inbound.receiver_agent_id}`);
-    lines.push(`action: ${snapshot.inbound.action}  round: ${snapshot.inbound.round}`);
-    lines.push(`interaction_type: ${snapshot.inbound.payload.interaction_type}`);
-    lines.push(`target_activity: ${snapshot.inbound.payload.target_activity}`);
-    lines.push(`target_vibe: ${snapshot.inbound.payload.target_vibe}`);
-    lines.push(`timestamp: ${snapshot.inbound.timestamp}`);
-  }
-
-  if (snapshot.outbound) {
-    lines.push("");
-    lines.push("[Outbound]");
-    lines.push(`action: ${snapshot.outbound.action}`);
-    if (snapshot.outbound.error) {
-      lines.push(`error: ${snapshot.outbound.error.code} - ${snapshot.outbound.error.message}`);
-    } else {
-      lines.push("error: null");
-    }
-    lines.push(`timestamp: ${snapshot.outbound.timestamp}`);
-  }
-
-  return lines.join("\n");
-}
 
 /** 将异常对象归一化为可对外展示的错误消息文本。 */
 function normalizeErrorMessage(error: unknown): string {
