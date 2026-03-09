@@ -84,7 +84,7 @@ Task-Agents_ai 是一个**数字孪生 Agent 双向撮合系统**，核心能力
 
 ## 三、合并目标
 
-将 Task-Agents_ai 的 Agent 灵魂分身模块整合进 Cosoul.AI，形成完整的**"选择分身 → 发布需求 → Agent自动匹配 → 消息交互 → 建立联系"**闭环。
+将 Task-Agents_ai 的 Agent 灵魂分身模块整合进 Cosoul.AI，形成完整的 **"选择分身 → 发布需求 → Agent自动匹配 → 消息交互 → 建立联系"** 闭环。
 
 ### 3.1 合并三大部分
 
@@ -150,82 +150,175 @@ L2 完成 ACCEPT 后进入 Waiting_Human，用户可：
 
 ## 四、合并后技术架构
 
-### 4.1 目录结构（新增部分）
+### 4.1 目录结构（合并后完整结构）
+
+> **架构原则**：`apps/` 是薄壳表现层（路由 + 平台适配），`packages/` 是核心资产库（业务逻辑、Agent、UI 全部可复用）。API 路由只做 HTTP 解析和转发，实际逻辑在 `@repo/core` 和 `@repo/agent` 中。
 
 ```
 Cosoul.AI/
-├── apps/
-│   └── web/
-│       └── app/
-│           ├── api/
-│           │   ├── persona/route.ts            # [新增] 分身CRUD API
-│           │   ├── persona/[id]/route.ts       # [新增] 单分身操作
-│           │   ├── task/route.ts               # [新增] 任务CRUD API
-│           │   ├── task/[id]/route.ts          # [新增] 单任务操作
-│           │   ├── task/[id]/run/route.ts      # [新增] 执行FSM步进
-│           │   ├── task/[id]/intent/route.ts   # [新增] 用户意图处理
-│           │   ├── contact/route.ts            # [新增] 联系人管理API
-│           │   ├── handshake/route.ts          # [新增] 握手协议入口
-│           │   ├── llm/chat/route.ts           # [新增] LLM通用对话
-│           │   └── embedding/route.ts          # [新增] Embedding服务
-│           ├── home/page.tsx                   # [新增] AI社区首页（预留）
-│           ├── discover/page.tsx               # [新增] 发现/动态（预留）
-│           ├── publish/page.tsx                # [改造] 发布中心（创建Task，未来扩展多媒体）
-│           ├── messages/page.tsx               # [改造] 消息+联系人（含分身切换）
-│           └── profile/page.tsx                # [改造] 个人主页（含分身管理）
-│
-├── packages/
-│   ├── ui/src/
-│   │   └── screens/
-│   │       ├── HomeScreen.tsx                  # [新增] AI社区首页（预留）
-│   │       ├── DiscoverScreen.tsx              # [新增] 发现/动态（预留）
-│   │       ├── PublishScreen.tsx               # [改造] 发布中心（创建Task入口）
-│   │       ├── TaskCreateScreen.tsx            # [新增] 创建任务（Intake对话）
-│   │       ├── MessageScreen.tsx               # [改造] 消息+联系人UI（含分身切换）
-│   │       ├── AgentChatScreen.tsx             # [新增] Agent对话UI
-│   │       ├── TaskDetailScreen.tsx            # [新增] 任务详情UI
-│   │       └── ProfileScreen.tsx               # [改造] 个人主页（含分身管理）
+├── apps/                                    # ── 表现层（薄壳，平台特定适配）──
+│   ├── web/                                 # Next.js 16 Web端
+│   │   ├── app/
+│   │   │   ├── api/                         # HTTP 路由入口（薄壳，调用 @repo/core + @repo/agent）
+│   │   │   │   ├── persona/route.ts         # [新增] 分身 CRUD → core.personaService
+│   │   │   │   ├── persona/[id]/route.ts    # [新增] 单分身操作
+│   │   │   │   ├── task/route.ts            # [新增] 任务 CRUD → core.taskService
+│   │   │   │   ├── task/[id]/route.ts       # [新增] 单任务操作
+│   │   │   │   ├── task/[id]/run/route.ts   # [新增] FSM步进 → agent.taskAgent.runStep()
+│   │   │   │   ├── task/[id]/intent/route.ts# [新增] 用户意图 → agent.taskAgent.handleIntent()
+│   │   │   │   ├── contact/route.ts         # [新增] 联系人 → core.contactService
+│   │   │   │   ├── handshake/route.ts       # [新增] 握手入口 → agent.taskAgent.protocol
+│   │   │   │   ├── llm/chat/route.ts        # [新增] LLM对话 → agent.shared.llm
+│   │   │   │   └── embedding/route.ts       # [新增] Embedding → agent.shared.rag
+│   │   │   ├── home/page.tsx                # [新增] 首页（预留）
+│   │   │   ├── discover/page.tsx            # [新增] 发现（预留）
+│   │   │   ├── publish/page.tsx             # [改造] 发布（创建Task）
+│   │   │   ├── messages/page.tsx            # [改造] 消息+联系人
+│   │   │   └── profile/page.tsx             # [改造] 个人主页
+│   │   ├── components/                      # Web 专属组件
+│   │   │   ├── AppShell.tsx                 # ThemeProvider + 分栏布局壳
+│   │   │   └── Sidebar.tsx                  # 液态玻璃侧边栏
+│   │   ├── stubs/                           # Web端原生模块 Stub
+│   │   ├── styles/global.css
+│   │   └── next.config.js                   # Turbopack + 模块别名
 │   │
-│   └── task-agent/                             # [新增] Agent核心包
-│       ├── src/
-│       │   ├── index.ts                        # 统一导出
-│       │   ├── fsm/
-│       │   │   ├── schema.ts                   # Zod Schema + 类型定义
-│       │   │   ├── transitions.ts              # 状态迁移函数
-│       │   │   └── task-loop.ts                # 状态机引擎
-│       │   ├── dispatcher/
-│       │   │   ├── dispatcher.ts               # L0/L1/L2 撮合总线
-│       │   │   ├── l0-filter.ts                # 硬过滤逻辑
-│       │   │   ├── l1-retrieval.ts             # 语义检索逻辑
-│       │   │   └── l2-sandbox.ts               # 沙盒谈判逻辑
-│       │   ├── llm/
-│       │   │   ├── base-model.ts               # BaseModel抽象类
-│       │   │   ├── openai-provider.ts          # OpenAI适配
-│       │   │   ├── claude-provider.ts          # Claude适配
-│       │   │   ├── qwen-provider.ts            # Qwen适配
-│       │   │   ├── provider-registry.ts        # Provider注册与缓存
-│       │   │   └── conversation.ts             # 多轮/单轮对话封装
-│       │   ├── rag/
-│       │   │   ├── embedding.ts                # Embedding API封装
-│       │   │   └── retrieval.ts                # 向量搜索与聚类
-│       │   ├── protocol/
-│       │   │   ├── handshake.ts                # 握手协议处理
-│       │   │   └── idempotency.ts              # 幂等控制
-│       │   ├── storage/
-│       │   │   ├── storage.ts                  # 持久化防腐层
-│       │   │   ├── db.ts                       # PostgreSQL连接与操作（Drizzle ORM）
-│       │   │   ├── schema.db.ts                # Drizzle数据库表定义
-│       │   │   └── task-md.ts                  # task.md读写解析
-│       │   ├── memory/
-│       │   │   ├── context.ts                  # Token预算与Prompt构建
-│       │   │   └── memory.ts                   # 记忆压缩与归档
-│       │   ├── intake/
-│       │   │   └── intake.ts                   # 多轮对话需求收集
-│       │   └── skills/
-│       │       └── skill-router.ts             # Skill路由（预留）
-│       ├── package.json
-│       └── tsconfig.json
+│   └── native/                              # Expo 55 移动端
+│       ├── app/                             # Expo Router 文件路由
+│       │   ├── _layout.tsx                  # 根布局（ThemeProvider + Stack）
+│       │   ├── index.tsx                    # 入口重定向 → (tabs)/feed
+│       │   ├── settings.tsx                 # 设置页（Stack modal）
+│       │   ├── task/[id].tsx                # [新增] 任务详情页（Stack push）
+│       │   ├── chat/[id].tsx                # [新增] 聊天详情页（Stack push）
+│       │   └── (tabs)/                      # Tab 导航组
+│       │       ├── _layout.tsx              # Tab布局（LiquidTabBar）
+│       │       ├── feed.tsx                 # 首页 → FeedScreen（预留）
+│       │       ├── discover.tsx             # 发现 → DiscoverScreen（预留）
+│       │       ├── publish.tsx              # [改造] 发布 → PublishScreen
+│       │       ├── messages.tsx             # [改造] 消息 → MessageScreen
+│       │       └── profile.tsx              # [改造] 我的 → ProfileScreen
+│       ├── lib/                             # Native 端工具层
+│       │   ├── api.ts                       # API客户端（baseURL → Web后端）
+│       │   └── platform.ts                  # 平台适配（推送通知、相机等）
+│       ├── app.json
+│       └── package.json
+│
+├── packages/                                # ── 核心资产库（共享的包，Web+Native 复用）──
+│   ├── ui/                                  # @repo/ui — 跨平台 UI 组件库
+│   │   └── src/
+│   │       ├── index.tsx                    # 统一导出入口
+│   │       ├── theme/
+│   │       │   └── ThemeContext.tsx          # 主题系统（Light/Dark/System）
+│   │       ├── components/
+│   │       │   ├── TabIcons.tsx             # 跨平台 SVG 图标集
+│   │       │   └── LiquidTabBar.tsx         # Native 液态玻璃底部导航
+│   │       └── screens/                     # 共享 Screen（Web + Native 复用）
+│   │           ├── FeedScreen.tsx           # 首页（预留）
+│   │           ├── DiscoverScreen.tsx       # 发现（预留）
+│   │           ├── PublishScreen.tsx        # [改造] 发布中心
+│   │           ├── TaskCreateScreen.tsx     # [新增] 创建任务（Intake对话）
+│   │           ├── MessageScreen.tsx        # [改造] 消息+联系人
+│   │           ├── AgentChatScreen.tsx      # [新增] Agent对话
+│   │           ├── TaskDetailScreen.tsx     # [新增] 任务详情
+│   │           ├── ProfileScreen.tsx        # [改造] 个人主页
+│   │           └── SettingsScreen.tsx       # 设置
+│   │
+│   ├── core/                                # @repo/core — 共享业务逻辑 + 数据层
+│   │   └── src/
+│   │       ├── index.ts                     # 统一导出
+│   │       ├── db/                          # 数据库连接与表定义
+│   │       │   ├── client.ts               # Drizzle ORM + pg 连接池
+│   │       │   └── schema.ts               # Drizzle 表定义（users, personas, tasks, contacts, ...）
+│   │       ├── services/                    # 业务服务层（被 API路由 + Agent 共同调用）
+│   │       │   ├── persona.service.ts      # 分身 CRUD + User.md ↔ persona_profiles 同步
+│   │       │   ├── task.service.ts         # 任务 CRUD + task.md 两阶段原子写
+│   │       │   ├── contact.service.ts      # 联系人管理 + AI好友备注
+│   │       │   └── chat.service.ts         # 聊天消息存取（四种模式）
+│   │       ├── storage/                     # 文件层持久化
+│   │       │   ├── task-md.ts              # task.md YAML+Markdown 序列化/反序列化
+│   │       │   └── file-store.ts           # .data/<persona_id>/ 目录读写工具
+│   │       └── types/                       # 共享 TypeScript 类型定义
+│   │           └── index.ts                # TaskDocument, Persona, Contact, AgentMessage 等
+│   │
+│   ├── agent/                               # @repo/agent — Agent 智能体总包
+│   │   └── src/
+│   │       ├── index.ts                     # 统一导出
+│   │       │
+│   │       ├── shared/                      # ── Agent 共享基础设施 ──
+│   │       │   ├── llm/                     # 多厂商 LLM 适配
+│   │       │   │   ├── base-model.ts        # BaseModel 抽象类（chatOnce/chatStream/countTokens）
+│   │       │   │   ├── openai-provider.ts   # OpenAI 适配
+│   │       │   │   ├── claude-provider.ts   # Claude 适配
+│   │       │   │   ├── qwen-provider.ts     # Qwen 适配（DashScope 接口）
+│   │       │   │   ├── provider-registry.ts # Provider 注册与单例缓存
+│   │       │   │   └── conversation.ts      # 多轮/单轮对话封装
+│   │       │   ├── rag/                     # Embedding + 向量检索
+│   │       │   │   ├── embedding.ts         # DashScope text-embedding-v4 封装
+│   │       │   │   └── retrieval.ts         # pgvector 向量搜索与加权聚合
+│   │       │   └── memory/                  # 记忆系统
+│   │       │       ├── context.ts           # Token 预算与 Prompt 构建
+│   │       │       └── memory.ts            # 记忆压缩（flush）与归档
+│   │       │
+│   │       ├── task-agent/                  # ── 任务匹配 Agent（核心）──
+│   │       │   ├── fsm/                     # 状态机
+│   │       │   │   ├── schema.ts            # Zod Schema + 枚举 + 迁移表
+│   │       │   │   ├── transitions.ts       # 状态迁移校验与执行
+│   │       │   │   └── task-loop.ts         # FSM 引擎（单步推进 + 状态分发）
+│   │       │   ├── dispatcher/              # L0/L1/L2 三层漏斗
+│   │       │   │   ├── dispatcher.ts        # 撮合总线（编排 L0→L1→L2）
+│   │       │   │   ├── l0-filter.ts         # 硬过滤（SQL WHERE 条件）
+│   │       │   │   ├── l1-retrieval.ts      # 语义检索（pgvector 加权排序）
+│   │       │   │   └── l2-sandbox.ts        # 沙盒谈判（Agent↔Agent CoT推理）
+│   │       │   ├── protocol/                # 握手协议
+│   │       │   │   ├── handshake.ts         # 握手收发 + 超时重试
+│   │       │   │   └── idempotency.ts       # 幂等控制（7天窗口）
+│   │       │   └── intake/                  # 需求收集
+│   │       │       └── intake.ts            # 多轮对话 → 结构化字段提取
+│   │       │
+│   │       ├── persona-agent/               # ── 人格管理 Agent（预留）──
+│   │       │   └── index.ts                 # User.md 自动生成/更新、性格推理、偏好学习
+│   │       │
+│   │       └── social-agent/                # ── 社交互动 Agent（预留）──
+│   │           └── index.ts                 # 主动刷贴、评论、内容推荐、动态生成
+│   │
+│   └── typescript-config/                   # 共享 TypeScript 配置
+│
+├── .data/                                   # Agent 本地数据（per-persona 目录）
+│   └── <persona_id>/
+│       ├── User.md                          # 人格偏好档案
+│       ├── raw_chats_summary/               # 精炼摘要（参与 Embedding/RAG）
+│       ├── logs/                            # 操作日志
+│       └── task_agents/
+│           └── <task_id>/
+│               ├── task.md                  # YAML头 + Markdown正文（唯一真相源）
+│               ├── task_summary.md          # 关键信息标签总结（可跨任务复用）
+│               └── data/                    # 任务专属数据
+│                   ├── daily_log/           # 操作日志
+│                   ├── agent_chat/          # Agent握手聊天记录 + scratchpad
+│                   └── agent_chat_summary/  # 握手总结报告
+├── .devcontainer/                           # 云开发环境配置
+├── docs/                                    # 项目文档
+└── drizzle.config.ts                        # 数据库迁移配置
 ```
+
+#### 架构分层说明
+
+```
+apps/web ──────────┐
+                   ├──→ packages/ui     (@repo/ui)     # 共享 UI
+apps/native ───────┤
+                   ├──→ packages/core   (@repo/core)   # 业务逻辑 + 数据层
+                   │         │
+                   └──→ packages/agent  (@repo/agent)  # Agent 智能体
+                              │
+                              ├──→ @repo/core（调用 services + DB）
+                              ├──→ OpenAI / Claude / Qwen LLM
+                              └──→ DashScope Embedding + pgvector
+```
+
+- **`apps/web/app/api/`** = 薄壳 HTTP 路由，只做请求解析 + 调用 `@repo/core` / `@repo/agent` + 返回响应
+- **`packages/core/`** = 所有业务 CRUD、DB 操作、文件层读写、类型定义，Web 和 Native 都可复用
+- **`packages/agent/`** = Agent 总包，`shared/` 提供 LLM/RAG/Memory 公共设施，各子 Agent 独立开发互不耦合
+- **`apps/native/lib/api.ts`** = Native 端通过 HTTP 调用 Web 后端 API，不直接引用 `@repo/core` 的 DB 层
 
 ### 4.2 存储架构：文件层 + PostgreSQL 双层映射
 
@@ -454,37 +547,41 @@ interface AgentMessage {
 
 ## 七、待完成的工作模块
 
-### 基础设施层
-- [ ] BaseModel抽象类定义与多Provider注册机制迁移至Cosoul.AI
-- [ ] Embedding API封装迁移与对接
-- [ ] PostgreSQL + pgvector 初始化与数据库表结构搭建（含 personas、contacts 等新表）
-- [ ] Storage防腐层适配（文件层 ↔ PostgreSQL 双层映射）
-- [ ] task.md 格式最终确定与解析函数
-- [ ] per-persona 文件目录结构初始化
+### @repo/core — 业务逻辑 + 数据层（`packages/core/`）
+- [ ] `db/schema.ts` — Drizzle 表定义（users, personas, tasks, contacts, task_vectors 等）
+- [ ] `db/client.ts` — PostgreSQL + pgvector 连接池初始化
+- [ ] `services/persona.service.ts` — 分身 CRUD + User.md ↔ persona_profiles 同步
+- [ ] `services/task.service.ts` — 任务 CRUD + task.md 两阶段原子写 + 乐观锁 + 补偿队列
+- [ ] `services/contact.service.ts` — 联系人管理 + AI好友备注
+- [ ] `services/chat.service.ts` — 聊天消息存取（四种模式）
+- [ ] `storage/task-md.ts` — task.md YAML+Markdown 序列化/反序列化
+- [ ] `storage/file-store.ts` — .data/ per-persona 目录初始化与读写
+- [ ] `types/index.ts` — 共享类型定义（TaskDocument, Persona, AgentMessage 等）
 
-### 分身（Persona）管理层
-- [ ] Persona CRUD API（创建/切换/编辑/删除分身）
-- [ ] User.md 读写与 persona_profiles 表同步
-- [ ] 分身切换上下文隔离（前端 + 后端）
-- [ ] 分身级别的联系人管理（contacts 表 + AI好友备注生成）
+### @repo/agent — Agent 智能体总包（`packages/agent/`）
 
-### Agent核心逻辑层
-- [ ] L0筛查条件优化（当前仅online/offline/any，需更优分类方式）
-- [ ] L1向量检索函数完善（activity/vibe 分别总结后 embedding）
-- [ ] L2沙盒谈判与Agent握手完整流程（含CoT + scratchpad + 反问机制）
-- [ ] Dispatcher L0→L1→L2 完整链路跑通
+#### shared/ — 共享基础设施
+- [ ] `shared/llm/base-model.ts` — BaseModel 抽象类 + AgentMessage 标准格式
+- [ ] `shared/llm/` — OpenAI / Claude / Qwen 三家 Provider + ProviderRegistry 单例
+- [ ] `shared/rag/embedding.ts` — DashScope Embedding API 封装
+- [ ] `shared/rag/retrieval.ts` — pgvector 向量搜索与加权聚合
+- [ ] `shared/memory/` — Token预算 + memory flush + 对话压缩归档
+
+#### task-agent/ — 任务匹配 Agent
+- [ ] `task-agent/fsm/` — FSM 状态机（9状态 + 迁移表 + Zod Schema）
+- [ ] `task-agent/dispatcher/` — L0硬过滤 + L1语义检索 + L2沙盒谈判 完整链路
+- [ ] `task-agent/protocol/` — 握手协议 + 幂等处理
+- [ ] `task-agent/intake/` — 多轮对话需求收集（结合 User.md 偏好）
 - [ ] 握手报告生成（"已为您找到N个匹配结果"）
-- [ ] Listener网络握手对接
 - [ ] 多分身 × 任务多开 独立状态追踪
-- [ ] startTask和listener逻辑编排（冲突处理）
+- [ ] startTask 和 listener 逻辑编排（冲突处理）
 - [ ] 高度匹配模式（热门Agent可开启高门槛过滤）
 
-### 上下文与记忆层
-- [ ] Context Token计算（LLM自带token计算或4:1估算）
-- [ ] memory flush 联动（压缩总结 → 补充 task.md + User.md）
-- [ ] raw_chats_summary 参与 Embedding（用于RAG）
-- [ ] task_summary.md 生成与跨任务复用
-- [ ] Prompt模板编写
+#### persona-agent/ — 人格管理 Agent（预留）
+- [ ] User.md 自动生成/更新、性格推理、偏好学习
+
+#### social-agent/ — 社交互动 Agent（预留）
+- [ ] 主动刷贴、评论、内容推荐、动态生成
 
 ### 前端交互层
 - [ ] 首页 Tab — AI 社区首页（预留，当前版本 placeholder）
@@ -505,6 +602,8 @@ interface AgentMessage {
 ## 八、技术依赖总结
 
 ### 需要新增的依赖
+
+**@repo/core（`packages/core`）**：
 | 包名 | 用途 |
 |------|------|
 | `pg` | PostgreSQL 原生驱动 |
@@ -512,9 +611,15 @@ interface AgentMessage {
 | `drizzle-kit` | 数据库迁移工具（devDependency） |
 | `pgvector` | pgvector JS 绑定（向量类型序列化） |
 | `zod` | 运行时Schema校验 |
-| `openai` | OpenAI SDK（同时用于Qwen兼容调用） |
 | `dotenv` | 环境变量加载 |
 | `uuid` | 生成task_id和message_id |
+
+**@repo/agent（`packages/agent`）**：
+| 包名 | 用途 |
+|------|------|
+| `@repo/core` | workspace 引用，调用 services + DB |
+| `openai` | OpenAI SDK（同时用于Qwen兼容调用） |
+| `zod` | 运行时Schema校验 |
 
 ### 需要的环境变量
 ```env

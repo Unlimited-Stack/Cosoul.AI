@@ -35,34 +35,66 @@ Phase 3 (A) ──┘         │        │       │
 ---
 
 ## Phase 1：项目骨架与包初始化
-**负责人：工程师A** | **预估：1天** | **前置依赖：无**
+**负责人：工程师A** | **预估：1.5天** | **前置依赖：无**
 
 ### 目标
-在 Cosoul.AI monorepo 中创建 `packages/task-agent` 包，搭建目录结构，配置构建。
+在 Cosoul.AI monorepo 中创建 `packages/core`（业务逻辑+数据层）和 `packages/agent`（Agent智能体总包）两个新包，搭建目录结构，配置构建。
 
 ### 任务清单
-- [ ] 在 `packages/` 下创建 `task-agent` 目录
-- [ ] 初始化 `package.json`（名称 `@repo/task-agent`），添加依赖：
-  - `pg`, `drizzle-orm`, `pgvector`, `zod`, `openai`, `dotenv`, `uuid`
+
+#### 1a. 创建 `packages/core`（@repo/core）
+- [ ] 初始化 `package.json`（名称 `@repo/core`），添加依赖：
+  - `pg`, `drizzle-orm`, `pgvector`, `zod`, `dotenv`, `uuid`
   - devDependencies: `typescript`, `drizzle-kit`, `@types/pg`, `@types/uuid`, `vitest`
 - [ ] 创建 `tsconfig.json` 继承根配置
 - [ ] 创建 `tsup.config.ts` 构建配置
-- [ ] 搭建源码目录骨架（空文件 + index.ts 导出）：
+- [ ] 搭建源码目录骨架：
   ```
-  src/
-  ├── index.ts
-  ├── fsm/          (schema.ts, transitions.ts, task-loop.ts)
-  ├── dispatcher/   (dispatcher.ts, l0-filter.ts, l1-retrieval.ts, l2-sandbox.ts)
-  ├── llm/          (base-model.ts, openai-provider.ts, claude-provider.ts, qwen-provider.ts, provider-registry.ts, conversation.ts)
-  ├── rag/          (embedding.ts, retrieval.ts)
-  ├── protocol/     (handshake.ts, idempotency.ts)
-  ├── storage/      (storage.ts, db.ts, schema.db.ts, task-md.ts)
-  ├── memory/       (context.ts, memory.ts)
-  ├── intake/       (intake.ts)
-  └── skills/       (skill-router.ts)
+  packages/core/src/
+  ├── index.ts                    # 统一导出
+  ├── db/
+  │   ├── client.ts              # Drizzle ORM + pg 连接池
+  │   └── schema.ts              # 全部 Drizzle 表定义
+  ├── services/
+  │   ├── persona.service.ts     # 分身 CRUD + User.md 同步
+  │   ├── task.service.ts        # 任务 CRUD + task.md 两阶段写
+  │   ├── contact.service.ts     # 联系人管理
+  │   └── chat.service.ts        # 聊天消息存取
+  ├── storage/
+  │   ├── task-md.ts             # task.md 序列化/反序列化
+  │   └── file-store.ts          # .data/ 目录读写工具
+  └── types/
+      └── index.ts               # 共享类型（TaskDocument, Persona, AgentMessage 等）
   ```
-- [ ] 在根 `package.json` 的 workspaces 确认包含 `packages/task-agent`
-- [ ] 更新 `turbo.json` 添加 task-agent 构建任务
+
+#### 1b. 创建 `packages/agent`（@repo/agent）
+- [ ] 初始化 `package.json`（名称 `@repo/agent`），添加依赖：
+  - `@repo/core`（workspace 引用）, `openai`, `zod`
+  - devDependencies: `typescript`, `vitest`
+- [ ] 创建 `tsconfig.json` + `tsup.config.ts`
+- [ ] 搭建源码目录骨架：
+  ```
+  packages/agent/src/
+  ├── index.ts                        # 统一导出
+  ├── shared/                         # Agent 共享基础设施
+  │   ├── llm/                       (base-model.ts, openai-provider.ts, claude-provider.ts, qwen-provider.ts, provider-registry.ts, conversation.ts)
+  │   ├── rag/                       (embedding.ts, retrieval.ts)
+  │   └── memory/                    (context.ts, memory.ts)
+  ├── task-agent/                     # 任务匹配 Agent
+  │   ├── fsm/                       (schema.ts, transitions.ts, task-loop.ts)
+  │   ├── dispatcher/                (dispatcher.ts, l0-filter.ts, l1-retrieval.ts, l2-sandbox.ts)
+  │   ├── protocol/                  (handshake.ts, idempotency.ts)
+  │   └── intake/                    (intake.ts)
+  ├── persona-agent/                  # 人格管理 Agent（预留）
+  │   └── index.ts
+  └── social-agent/                   # 社交互动 Agent（预留）
+      └── index.ts
+  ```
+
+#### 1c. Monorepo 配置
+- [ ] 在根 `package.json` 的 workspaces 确认包含 `packages/core` 和 `packages/agent`
+- [ ] 更新 `turbo.json` 添加 core 和 agent 构建任务
+- [ ] 配置依赖关系：`@repo/agent` → `@repo/core`，`apps/web` → `@repo/core` + `@repo/agent`
 - [ ] 创建 `.data/<persona_id>/` 目录结构模板：
   ```
   .data/<persona_id>/
@@ -79,7 +111,8 @@ Phase 3 (A) ──┘         │        │       │
 - [ ] 验证 `npm install` 和 `npm run build` 通过
 
 ### 交付标准
-- `@repo/task-agent` 包可被 `apps/web` 引用
+- `@repo/core` 和 `@repo/agent` 包可被 `apps/web` 引用
+- `@repo/agent` 可正确引用 `@repo/core`
 - 目录结构完整，所有空文件有类型占位导出
 - CI 构建通过
 
@@ -92,7 +125,7 @@ Phase 3 (A) ──┘         │        │       │
 定义统一的 LLM 调用接口，适配 OpenAI / Claude / Qwen 三个厂商。
 
 ### 任务清单
-- [ ] 定义 `BaseModel` 抽象类（`llm/base-model.ts`）：
+- [ ] 定义 `BaseModel` 抽象类（`packages/agent/src/shared/llm/base-model.ts`）：
   ```typescript
   abstract class BaseModel {
     abstract name: string;
@@ -103,7 +136,7 @@ Phase 3 (A) ──┘         │        │       │
     abstract countMessageTokens(messages: AgentMessage[]): number;
   }
   ```
-- [ ] 定义标准消息格式：
+- [ ] 定义标准消息格式（`packages/core/src/types/index.ts`，供 core 和 agent 共用）：
   ```typescript
   interface AgentMessage {
     role: "system" | "user" | "assistant";
@@ -120,7 +153,7 @@ Phase 3 (A) ──┘         │        │       │
 - [ ] 实现 `QwenProvider`（DashScope OpenAI兼容接口）：
   - 基于 openai SDK，修改 baseURL
   - 支持 qwen3-max, qwen-turbo
-- [ ] 实现 `ProviderRegistry`（`llm/provider-registry.ts`）：
+- [ ] 实现 `ProviderRegistry`（`packages/agent/src/shared/llm/provider-registry.ts`）：
   - 单例缓存 `Map<string, BaseModel>`
   - `getProvider(name, model)` 工厂方法
   - 默认配置从环境变量读取
@@ -151,11 +184,11 @@ Phase 3 (A) ──┘         │        │       │
   - 在 `.devcontainer/docker-compose.yml` 中添加 PostgreSQL 16 + pgvector 服务
   - 配置 `DATABASE_URL` 环境变量
   - 编写 `drizzle.config.ts` 迁移配置
-- [ ] 实现 `storage/db.ts`（数据库连接与初始化）：
+- [ ] 实现 `packages/core/src/db/client.ts`（数据库连接与初始化）：
   - Drizzle ORM + pg 驱动连接池初始化
   - `initDatabase()` — 启用 pgvector 扩展 (`CREATE EXTENSION IF NOT EXISTS vector`)
   - 连接池配置（max connections, idle timeout）
-- [ ] 实现 `storage/schema.db.ts`（Drizzle 表定义）：
+- [ ] 实现 `packages/core/src/db/schema.ts`（Drizzle 表定义）：
   - `users` 表 — user_id, email, created_at
   - `personas` 表 — persona_id, user_id, name, avatar, bio, settings(jsonb), created_at, updated_at
   - `persona_profiles` 表 — persona_id, profile_text, preferences(jsonb), updated_at（User.md 派生）
@@ -171,22 +204,22 @@ Phase 3 (A) ──┘         │        │       │
   - 为 tasks 创建 (persona_id, status) 联合索引
   - 为 contacts 创建 (persona_id) 索引
 - [ ] 编写 Drizzle 数据库迁移脚本（`drizzle-kit generate` + `drizzle-kit migrate`）
-- [ ] 实现核心数据库操作函数：
-  - `createPersona(userId, data)` / `getPersonas(userId)` / `updatePersona(personaId, data)`
-  - `syncUserMd(personaId, content)` — User.md ↔ persona_profiles 同步
-  - `upsertTask(task)` / `readTask(taskId)` / `listTasksByStatuses(personaId, statuses)`
-  - `saveTaskSummary(taskId, summary)` / `findSimilarTaskSummaries(personaId, query)` — 跨任务复用
-  - `createContact(personaId, friendPersonaId, note)` / `listContacts(personaId)`
+- [ ] 实现 `packages/core/src/services/` 业务服务层（被 API 路由 + Agent 共同调用）：
+  - `persona.service.ts`: `createPersona()` / `getPersonas()` / `updatePersona()` / `syncUserMd()`
+  - `task.service.ts`: `upsertTask()` / `readTask()` / `listTasksByStatuses()` / `saveTaskSummary()` / `findSimilarTaskSummaries()`
+  - `contact.service.ts`: `createContact()` / `listContacts()`
+  - `chat.service.ts`: 聊天消息存取
+- [ ] 实现向量相关 DB 操作（供 `@repo/agent` 调用）：
   - `upsertTaskVector(taskId, field, embedding)` — 写入 pgvector 列
   - `readTaskVectors(taskId)` — 读取任务所有向量
   - `vectorSearch(queryVector, field, filter, topK)` — 使用 `<=>` 运算符的原生向量检索
   - `queryL0Candidates(taskId)` — 基于 SQL WHERE 的 L0 硬过滤
-- [ ] 实现 `storage/task-md.ts`：
+- [ ] 实现 `packages/core/src/storage/task-md.ts`：
   - task.md 的 YAML头 + Markdown正文 读写
   - `serializeTaskMD(task)` / `parseTaskMD(content)`
   - 文件路径解析：`.data/<persona_id>/task_agents/<task_id>/task.md`
   - task_summary.md 读写：`.data/<persona_id>/task_agents/<task_id>/task_summary.md`
-- [ ] 实现 `storage/storage.ts` 防腐层：
+- [ ] 在 `packages/core/src/services/task.service.ts` 中实现防腐层逻辑：
   - `saveTaskMD(task, options?)` — 含乐观锁校验（写task.md + 写PostgreSQL）
   - `readTaskDocument(taskId)` — 优先读task.md，回退读PostgreSQL
   - `transitionTaskStatus(taskId, nextStatus)` — 两阶段原子写（task.md → PostgreSQL）
@@ -215,19 +248,19 @@ Phase 3 (A) ──┘         │        │       │
 **负责人：工程师C** | **预估：1.5天** | **前置依赖：Phase 2, Phase 3**
 
 ### 目标
-迁移状态机、类型定义、Zod Schema 到新包。
+迁移状态机、类型定义、Zod Schema 到 `packages/agent` 中。
 
 ### 任务清单
-- [ ] 实现 `fsm/schema.ts`：
+- [ ] 实现 `packages/agent/src/task-agent/fsm/schema.ts`：
   - 所有枚举类型（TaskStatus, InteractionType, HandshakeAction, ErrorCode, SessionStatus）
   - Zod Schemas（TaskFrontmatter, TaskBody, TaskDocument, HandshakeInbound/Outbound, NegotiationSession, ListeningReport）
   - Parse 函数（parseTaskDocument, parseHandshakeInbound/Outbound）
   - 允许的状态迁移表 `ALLOWED_TRANSITIONS: Record<TaskStatus, TaskStatus[]>`
-- [ ] 实现 `fsm/transitions.ts`：
+- [ ] 实现 `packages/agent/src/task-agent/fsm/transitions.ts`：
   - `assertTransitionAllowed(from, to)` — 校验迁移合法性
   - `transitionTask(taskId, nextStatus)` — 调用 storage 执行迁移
   - 迁移时更新 `entered_status_at`, `updated_at`, `version++`
-- [ ] 实现 `fsm/task-loop.ts`：
+- [ ] 实现 `packages/agent/src/task-agent/fsm/task-loop.ts`：
   - `runTaskStepById(taskId)` — 单步FSM推进
   - `runTaskStep(task)` — 根据status分发到对应处理函数
   - 状态处理占位（Drafting→Searching, Searching→调用dispatcher, etc.）
@@ -321,7 +354,7 @@ Phase 3 (A) ──┘         │        │       │
 
 ### 任务清单
 
-#### Intake 多轮对话（@repo/task-agent, 与工程师C协同）
+#### Intake 多轮对话（@repo/agent task-agent, 与工程师C协同）
 - [ ] 实现 `intake/intake.ts`：
   - `collectTaskFromUser(personaId, conversation)` — 加载该分身的 User.md 偏好，结合偏好生成针对性引导问题
   - 提取字段：interaction_type, rawDescription, targetActivity, targetVibe, detailedPlan

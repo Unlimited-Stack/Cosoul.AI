@@ -55,97 +55,129 @@
 
 ```
 Cosoul.AI/
-├── .devcontainer/              # Docker 开发容器配置
+├── .devcontainer/                     # Docker 开发容器配置
 │   ├── Dockerfile
-│   ├── docker-compose.yml      # 含 PostgreSQL + pgvector 服务
+│   ├── docker-compose.yml             # 含 PostgreSQL + pgvector 服务
 │   └── devcontainer.json
-├── apps/
-│   ├── web/                    # Next.js 16 Web 应用
-│   │   ├── app/                # App Router 路由目录
-│   │   │   ├── page.tsx        # 根路径重定向 → /feed
-│   │   │   ├── layout.tsx      # 根布局（AppShell 包裹）
-│   │   │   ├── api/
-│   │   │   │   ├── task/route.ts           # 任务 CRUD API
-│   │   │   │   ├── task/[id]/route.ts      # 单任务操作
-│   │   │   │   ├── task/[id]/run/route.ts  # FSM 步进
-│   │   │   │   ├── task/[id]/intent/route.ts # 用户意图
-│   │   │   │   ├── handshake/route.ts      # 握手协议入口
-│   │   │   │   ├── llm/chat/route.ts       # LLM 通用对话
-│   │   │   │   └── embedding/route.ts      # Embedding 服务
-│   │   │   ├── feed/page.tsx          # 瀑布流信息流
-│   │   │   ├── cards/page.tsx         # 发现
-│   │   │   ├── messages/page.tsx      # 消息交互（四种模式）
+│
+├── apps/                              # ── 表现层（薄壳，平台特定适配）──
+│   ├── web/                           # Next.js 16 Web端
+│   │   ├── app/                       # App Router 路由目录
+│   │   │   ├── page.tsx               # 根路径重定向 → /feed
+│   │   │   ├── layout.tsx             # 根布局（AppShell 包裹）
+│   │   │   ├── api/                   # HTTP 路由入口（薄壳，调用 @repo/core + @repo/agent）
+│   │   │   │   ├── persona/           # 分身 CRUD
+│   │   │   │   ├── task/              # 任务管理 + FSM步进 + 用户意图
+│   │   │   │   ├── contact/           # 联系人管理
+│   │   │   │   ├── handshake/         # 握手协议入口
+│   │   │   │   ├── llm/chat/          # LLM 通用对话
+│   │   │   │   └── embedding/         # Embedding 服务
+│   │   │   ├── home/page.tsx          # 首页（预留）
+│   │   │   ├── discover/page.tsx      # 发现（预留）
 │   │   │   ├── publish/page.tsx       # 发布需求
-│   │   │   ├── ai-core/page.tsx       # AI 核心交互区
+│   │   │   ├── messages/page.tsx      # 消息 + 联系人
 │   │   │   ├── profile/page.tsx       # 我的
 │   │   │   └── settings/page.tsx      # 设置
 │   │   ├── components/
-│   │   │   ├── AppShell.tsx    # ThemeProvider + 分栏布局壳
-│   │   │   └── Sidebar.tsx     # 液态玻璃侧边栏
-│   │   ├── stubs/              # Web 端原生模块 Stub
-│   │   ├── styles/global.css   # 全局样式
-│   │   ├── next.config.js      # Turbopack + 模块别名配置
+│   │   │   ├── AppShell.tsx           # ThemeProvider + 分栏布局壳
+│   │   │   └── Sidebar.tsx            # 液态玻璃侧边栏
+│   │   ├── stubs/                     # Web端原生模块 Stub
+│   │   ├── styles/global.css
+│   │   ├── next.config.js             # Turbopack + 模块别名
 │   │   └── package.json
-│   └── native/                 # Expo 55 React Native 应用
-│       ├── app/
-│       │   ├── _layout.tsx     # 根布局（ThemeProvider + Stack）
-│       │   ├── index.tsx       # 根重定向
-│       │   ├── settings.tsx    # 设置页（Stack modal）
-│       │   └── (tabs)/         # Tab 导航组
-│       │       ├── _layout.tsx # Tab 布局（LiquidTabBar）
-│       │       ├── feed.tsx    # 瀑布流
-│       │       ├── cards.tsx   # 发现
-│       │       ├── index.tsx   # 消息
-│       │       ├── ai-core.tsx # AI 核心
-│       │       └── profile.tsx # 我的
+│   │
+│   └── native/                        # Expo 55 移动端
+│       ├── app/                       # Expo Router 文件路由
+│       │   ├── _layout.tsx            # 根布局（ThemeProvider + Stack）
+│       │   ├── index.tsx              # 入口重定向 → (tabs)/feed
+│       │   ├── settings.tsx           # 设置页（Stack modal）
+│       │   ├── task/[id].tsx          # 任务详情页（Stack push）
+│       │   ├── chat/[id].tsx          # 聊天详情页（Stack push）
+│       │   └── (tabs)/               # Tab 导航组
+│       │       ├── _layout.tsx        # Tab布局（LiquidTabBar）
+│       │       ├── feed.tsx           # 首页 → FeedScreen
+│       │       ├── discover.tsx       # 发现 → DiscoverScreen
+│       │       ├── publish.tsx        # 发布 → PublishScreen
+│       │       ├── messages.tsx       # 消息 → MessageScreen
+│       │       └── profile.tsx        # 我的 → ProfileScreen
+│       ├── lib/                       # Native 端工具层
+│       │   ├── api.ts                 # API客户端（baseURL → Web后端）
+│       │   └── platform.ts           # 平台适配（推送通知、相机等）
 │       ├── app.json
 │       └── package.json
-├── packages/
-│   ├── ui/                     # 共享 UI 包（@repo/ui）
+│
+├── packages/                          # ── 核心资产库（共享的包）──
+│   ├── ui/                            # @repo/ui — 跨平台 UI 组件库
 │   │   ├── src/
-│   │   │   ├── index.tsx       # 统一导出入口
+│   │   │   ├── index.tsx              # 统一导出入口
 │   │   │   ├── theme/
-│   │   │   │   └── ThemeContext.tsx  # 主题系统
+│   │   │   │   └── ThemeContext.tsx    # 主题系统
 │   │   │   ├── components/
-│   │   │   │   ├── TabIcons.tsx     # 跨平台 SVG 图标集
-│   │   │   │   ├── LiquidTabBar.tsx # Native 液态玻璃 TabBar
+│   │   │   │   ├── TabIcons.tsx       # 跨平台 SVG 图标集
+│   │   │   │   ├── LiquidTabBar.tsx   # Native 液态玻璃 TabBar
 │   │   │   │   └── TabIcon.tsx
-│   │   │   └── screens/
-│   │   │       ├── MessageScreen.tsx    # 消息交互（四种模式）
-│   │   │       ├── FeedScreen.tsx       # 瀑布流信息流
-│   │   │       ├── CardsScreen.tsx      # 发现卡片
-│   │   │       ├── AiCoreScreen.tsx     # AI 核心交互区
-│   │   │       ├── PublishScreen.tsx    # 发布需求 UI
-│   │   │       ├── TaskDetailScreen.tsx # 任务详情
-│   │   │       ├── AgentChatScreen.tsx  # Agent 对话
-│   │   │       ├── ProfileScreen.tsx    # 个人主页
-│   │   │       ├── SettingsScreen.tsx   # 设置
-│   │   │       └── sseParser.ts        # SSE 流解析器
+│   │   │   └── screens/              # 共享 Screen（Web + Native 复用）
+│   │   │       ├── FeedScreen.tsx
+│   │   │       ├── DiscoverScreen.tsx
+│   │   │       ├── PublishScreen.tsx
+│   │   │       ├── TaskCreateScreen.tsx
+│   │   │       ├── MessageScreen.tsx
+│   │   │       ├── AgentChatScreen.tsx
+│   │   │       ├── TaskDetailScreen.tsx
+│   │   │       ├── ProfileScreen.tsx
+│   │   │       ├── SettingsScreen.tsx
+│   │   │       └── sseParser.ts       # SSE 流解析器
 │   │   ├── tsup.config.ts
 │   │   └── package.json
-│   ├── task-agent/             # Agent 核心包（@repo/task-agent）
+│   │
+│   ├── core/                          # @repo/core — 共享业务逻辑 + 数据层
 │   │   ├── src/
 │   │   │   ├── index.ts
-│   │   │   ├── fsm/           # 状态机 + Schema
-│   │   │   ├── dispatcher/    # L0/L1/L2 匹配漏斗
-│   │   │   ├── llm/           # 多厂商 LLM 适配（BaseModel）
-│   │   │   ├── rag/           # Embedding + 向量检索
-│   │   │   ├── protocol/      # 握手协议 + 幂等
-│   │   │   ├── storage/       # PostgreSQL + task.md 持久化
-│   │   │   ├── memory/        # 记忆压缩 + 上下文管理
-│   │   │   ├── intake/        # 多轮对话需求收集
-│   │   │   └── skills/        # Skill 路由（预留）
+│   │   │   ├── db/                    # 数据库连接与表定义
+│   │   │   │   ├── client.ts          # Drizzle ORM + pg 连接池
+│   │   │   │   └── schema.ts          # 全部 Drizzle 表定义
+│   │   │   ├── services/              # 业务服务层
+│   │   │   │   ├── persona.service.ts
+│   │   │   │   ├── task.service.ts
+│   │   │   │   ├── contact.service.ts
+│   │   │   │   └── chat.service.ts
+│   │   │   ├── storage/               # 文件层持久化
+│   │   │   │   ├── task-md.ts
+│   │   │   │   └── file-store.ts
+│   │   │   └── types/                 # 共享类型定义
+│   │   │       └── index.ts
 │   │   ├── package.json
 │   │   └── tsconfig.json
-│   └── typescript-config/      # 共享 TS 配置
-├── .data/                      # Agent 本地数据
-│   ├── User.md                 # 用户画像
-│   ├── task_agents/            # 任务数据（task.md）
-│   └── logs/                   # 系统日志
-├── docs/                       # 项目文档
-├── drizzle.config.ts           # 数据库迁移配置
-├── turbo.json                  # Turborepo 任务编排
-└── package.json                # 根 package.json（workspaces）
+│   │
+│   ├── agent/                         # @repo/agent — Agent 智能体总包
+│   │   ├── src/
+│   │   │   ├── index.ts
+│   │   │   ├── shared/                # Agent 共享基础设施
+│   │   │   │   ├── llm/               # 多厂商 LLM 适配（BaseModel）
+│   │   │   │   ├── rag/               # Embedding + 向量检索
+│   │   │   │   └── memory/            # 记忆系统
+│   │   │   ├── task-agent/            # 任务匹配 Agent
+│   │   │   │   ├── fsm/              # 状态机
+│   │   │   │   ├── dispatcher/        # L0/L1/L2 匹配漏斗
+│   │   │   │   ├── protocol/          # 握手协议 + 幂等
+│   │   │   │   └── intake/            # 多轮对话需求收集
+│   │   │   ├── persona-agent/         # 人格管理 Agent（预留）
+│   │   │   └── social-agent/          # 社交互动 Agent（预留）
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   │
+│   └── typescript-config/             # 共享 TS 配置
+│
+├── .data/                             # Agent 本地数据（per-persona）
+│   └── <persona_id>/
+│       ├── User.md
+│       ├── raw_chats_summary/
+│       ├── logs/
+│       └── task_agents/<task_id>/
+├── docs/                              # 项目文档
+├── drizzle.config.ts                  # 数据库迁移配置
+├── turbo.json                         # Turborepo 任务编排
+└── package.json                       # 根 package.json（workspaces）
 ```
 
 ---
@@ -226,15 +258,22 @@ npx turbo build --filter=@repo/ui
 ### 6.1 Monorepo 依赖关系
 
 ```
-apps/web ──────┐
-               ├──→ packages/ui (@repo/ui)
-apps/native ───┤
-               └──→ packages/task-agent (@repo/task-agent)
-                         │
-                         ├──→ PostgreSQL + pgvector
-                         ├──→ OpenAI / Claude / Qwen LLM
-                         └──→ DashScope Embedding
+apps/web ──────────┐
+                   ├──→ packages/ui     (@repo/ui)     # 共享 UI 组件
+apps/native ───────┤
+                   ├──→ packages/core   (@repo/core)   # 业务逻辑 + 数据层
+                   │         │
+                   │         ├──→ PostgreSQL + pgvector
+                   │         └──→ .data/ 文件层
+                   │
+                   └──→ packages/agent  (@repo/agent)  # Agent 智能体
+                              │
+                              ├──→ @repo/core（调用 services + DB）
+                              ├──→ OpenAI / Claude / Qwen LLM
+                              └──→ DashScope Embedding
 ```
+
+> **注意**：`apps/native` 不直接引用 `@repo/core` 的 DB 层，而是通过 HTTP 调用 `apps/web/app/api/` 路由间接使用。`apps/web/app/api/` 是薄壳路由，实际逻辑在 `@repo/core` 和 `@repo/agent` 中。
 
 **`@repo/ui` 构建策略**：
 - 使用 `tsup` 打包为 CJS + ESM，输出到 `dist/`
@@ -492,7 +531,7 @@ Failed       → [Searching]      // 重试
 
 ### 9.4 数据库变更流程
 
-1. 修改 `packages/task-agent/src/storage/schema.db.ts` 中的 Drizzle 表定义
+1. 修改 `packages/core/src/db/schema.ts` 中的 Drizzle 表定义
 2. 生成迁移：`npx drizzle-kit generate`
 3. 执行迁移：`npx drizzle-kit migrate`
 4. 验证：检查 PostgreSQL 表结构与代码一致
@@ -542,10 +581,18 @@ Failed       → [Searching]      // 重试
 | `packages/ui/src/screens/MessageScreen.tsx` | 消息交互（四种模式） |
 | `packages/ui/src/screens/PublishScreen.tsx` | 发布需求 UI |
 | `packages/ui/src/screens/sseParser.ts` | SSE 流式响应解析 |
-| `packages/task-agent/src/fsm/` | FSM 状态机 + Schema |
-| `packages/task-agent/src/dispatcher/` | L0/L1/L2 匹配漏斗 |
-| `packages/task-agent/src/llm/` | 多厂商 LLM 适配 |
-| `packages/task-agent/src/storage/` | PostgreSQL + task.md 持久化 |
+| `packages/core/src/db/schema.ts` | Drizzle 数据库表定义 |
+| `packages/core/src/db/client.ts` | 数据库连接池 |
+| `packages/core/src/services/` | 业务服务层（persona/task/contact/chat） |
+| `packages/core/src/storage/task-md.ts` | task.md 序列化/反序列化 |
+| `packages/core/src/types/index.ts` | 共享类型定义 |
+| `packages/agent/src/shared/llm/` | 多厂商 LLM 适配（BaseModel） |
+| `packages/agent/src/shared/rag/` | Embedding + 向量检索 |
+| `packages/agent/src/shared/memory/` | 记忆系统 |
+| `packages/agent/src/task-agent/fsm/` | FSM 状态机 + Schema |
+| `packages/agent/src/task-agent/dispatcher/` | L0/L1/L2 匹配漏斗 |
+| `packages/agent/src/task-agent/protocol/` | 握手协议 + 幂等 |
+| `packages/agent/src/task-agent/intake/` | 多轮对话需求收集 |
 | `apps/web/components/Sidebar.tsx` | Web 液态玻璃侧边栏 |
 | `apps/web/components/AppShell.tsx` | Web 应用外壳 |
 

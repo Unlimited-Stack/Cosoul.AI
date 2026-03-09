@@ -1,4 +1,4 @@
-# Cosoul.AI — Multi-Agent 意图路由匹配引擎
+# Cosoul.AI — Agent 时代的 AI 社交社区
 
 让私人 AI 替你全网交涉。基于**多智能体（Multi-Agent）** 架构，AI 之间进行自动化机对机（M2M）意图交涉，帮助人类精准匹配最契合的人与资源，实现 0 摩擦的社交与交易。
 
@@ -77,7 +77,8 @@
   - `apps/native`: Expo 55 (React Native 0.83)，iOS/Android 原生应用
 - **共享层 (`packages/`)**:
   - `packages/ui`: 跨平台 UI 组件库（@repo/ui），含主题系统、液态玻璃导航
-  - `packages/task-agent`: Agent 核心包（@repo/task-agent），含 FSM、Dispatcher、LLM、向量搜索
+  - `packages/core`: 共享业务逻辑+数据层（@repo/core），含 DB、Services、Storage、Types
+  - `packages/agent`: Agent 智能体总包（@repo/agent），含 shared（LLM/RAG/Memory）+ task-agent + persona-agent + social-agent
 - **数据层**:
   - PostgreSQL 16 + pgvector：用户、分身、任务、联系人、向量索引、握手记录
   - `.data/<persona_id>/` 文件层：per-persona 的 User.md、task.md（单一真相源）、对话记录
@@ -166,36 +167,38 @@
 
 ```
 Cosoul.AI/
-├── apps/
-│   ├── web/                    # Next.js 16 Web应用 + API路由
-│   │   └── app/
-│   │       ├── api/            # 后端API（分身、任务、联系人、握手、LLM、Embedding）
-│   │       ├── home/           # 首页（AI社区入口，预留）
-│   │       ├── discover/       # 发现页（动态信息流，预留）
-│   │       ├── publish/        # 发布页（创建Task，未来扩展多媒体发布）
-│   │       ├── messages/       # 消息页（含分身切换 + 联系人）
-│   │       └── profile/        # 个人主页（含分身管理）
-│   └── native/                 # Expo 55 移动端应用
-├── packages/
-│   ├── ui/                     # 跨平台UI组件库
-│   │   └── src/screens/        # 共享Screen组件
-│   └── task-agent/             # Agent核心包
-│       └── src/
-│           ├── fsm/            # 状态机 + Schema
-│           ├── dispatcher/     # L0/L1/L2 匹配漏斗
-│           ├── llm/            # 多厂商LLM适配（BaseModel抽象）
-│           ├── rag/            # Embedding + 向量检索
-│           ├── protocol/       # 握手协议 + 幂等
-│           ├── storage/        # PostgreSQL + task.md 持久化
-│           ├── memory/         # Memory Flush + 上下文管理
-│           ├── intake/         # 多轮对话需求收集
-│           └── skills/         # Skill路由（预留）
-├── .data/                      # Agent本地数据（per-persona目录）
-│   └── <persona_id>/           # 每个分身独立目录
-│       ├── User.md             # 人格偏好档案
-│       ├── raw_chats_summary/  # 精炼摘要（参与Embedding/RAG）
-│       └── task_agents/        # 任务实例（task.md + task_summary.md）
-├── .devcontainer/              # 云开发环境配置
+├── apps/                       # 表现层（薄壳，平台特定适配）
+│   ├── web/                    #   Next.js 16 Web端 + API 路由
+│   │   ├── app/api/            #     HTTP 薄壳路由（persona/task/handshake/llm/embedding等）
+│   │   ├── app/[pages]/        #     页面路由（首页/动态/发布/消息/个人）
+│   │   ├── components/         #     Web 专属组件（AppShell, Sidebar）
+│   │   └── stubs/              #     原生模块 Web Stub
+│   └── native/                 #   Expo 55 移动端（iOS / Android）
+│       ├── app/(tabs)/         #     5 Tab 导航（feed/discover/publish/messages/profile）
+│       └── lib/                #     API 客户端 + 平台适配
+│
+├── packages/                   # 核心资产库（共享的包）
+│   ├── ui/                     #   @repo/ui — 跨平台 UI 组件库
+│   │   └── src/
+│   │       ├── theme/          #     主题系统（Light/Dark/System）
+│   │       ├── components/     #     基础组件（TabIcons, LiquidTabBar）
+│   │       └── screens/        #     共享 Screen（Web + Native 复用，9 个页面）
+│   ├── core/                   #   @repo/core — 业务逻辑 + 数据层
+│   │   └── src/
+│   │       ├── db/             #     PostgreSQL + pgvector（Drizzle ORM）
+│   │       ├── services/       #     业务服务（persona/task/contact/chat）
+│   │       ├── storage/        #     文件层持久化（task.md 读写）
+│   │       └── types/          #     共享 TypeScript 类型
+│   ├── agent/                  #   @repo/agent — Agent 智能体总包
+│   │   └── src/
+│   │       ├── shared/         #     共享基础设施（LLM 多厂商适配 / RAG / Memory）
+│   │       ├── task-agent/     #     任务匹配 Agent（FSM / L0-L1-L2 / 握手协议 / Intake）
+│   │       ├── persona-agent/  #     人格管理 Agent（预留）
+│   │       └── social-agent/   #     社交互动 Agent（预留）
+│   └── typescript-config/      #   共享 TypeScript 配置
+│
+├── .data/<persona_id>/         # Agent 本地数据（per-persona，含 User.md / task.md）
+├── .devcontainer/              # Docker 云开发环境
 ├── docs/                       # 项目文档
 └── drizzle.config.ts           # 数据库迁移配置
 ```
@@ -225,4 +228,4 @@ idempotency_keys — 幂等控制（TTL 7天）
 - **SDK 55 版本矩阵**：Expo ~55.0.5 / React 19.2.x / React Native 0.83.x / Expo Router ~55.0.4
 - **禁止在真机上手动 Reload**：经 ngrok 隧道传输 JS bundle 耗时 3 分钟以上，修改代码后直接保存即可，HMR 毫秒级响应
 - 若遇到 Metro bundling 报错，清除缓存重启：`npm run dev:mobile:clear`
-- 数据库迁移：修改 `schema.db.ts` 后运行 `npx drizzle-kit generate && npx drizzle-kit migrate`
+- 数据库迁移：修改 `packages/core/src/db/schema.ts` 后运行 `npx drizzle-kit generate && npx drizzle-kit migrate`
