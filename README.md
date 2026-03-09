@@ -229,3 +229,5 @@ idempotency_keys — 幂等控制（TTL 7天）
 - **禁止在真机上手动 Reload**：经 ngrok 隧道传输 JS bundle 耗时 3 分钟以上，修改代码后直接保存即可，HMR 毫秒级响应
 - 若遇到 Metro bundling 报错，清除缓存重启：`npm run dev:mobile:clear`
 - 数据库迁移：修改 `packages/core/src/db/schema.ts` 后运行 `npx drizzle-kit generate && npx drizzle-kit migrate`
+
+旁分支Test
