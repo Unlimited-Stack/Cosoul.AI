@@ -1,0 +1,326 @@
+/**
+ * global.css — Web 端全局样式
+ * 左右分栏布局：左侧可展开/收起的液态玻璃侧边栏 + 右侧内容区。
+ * 所有过渡动画使用统一的贝塞尔曲线保持视觉一致性。
+ */
+
+/* ── 过渡时间变量 ───────────────────────────────────────────────── */
+:root {
+  --sidebar-transition: 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+  --sidebar-collapsed-w: 60px;
+  --sidebar-expanded-w: 192px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  font-family: "SF Pro Text", "SF Pro Icons", "Helvetica Neue", "Helvetica",
+    "Arial", sans-serif;
+  overflow: hidden;
+  transition: background-color 0.3s;
+}
+
+/* ── 根布局容器 ─────────────────────────────────────────────────── */
+.app-shell {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* ================================================================
+ * 液态玻璃侧边栏
+ * 默认收起（仅图标），点击 Logo / 展开按钮后展开（图标+文字）
+ * ================================================================ */
+.sidebar {
+  width: var(--sidebar-collapsed-w);
+  height: 100vh;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 8px 16px;
+  position: relative;
+  z-index: 100;
+  overflow: hidden;
+  transition: width var(--sidebar-transition);
+
+  /* 液态玻璃——浅色模式 */
+  background: rgba(210, 210, 215, 0.55);
+  backdrop-filter: blur(48px) saturate(2.0);
+  -webkit-backdrop-filter: blur(48px) saturate(2.0);
+  border-right: 0.5px solid rgba(255, 255, 255, 0.5);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.3);
+}
+
+.sidebar.expanded {
+  width: var(--sidebar-expanded-w);
+}
+
+/* 深色模式——泛白毛玻璃 */
+.sidebar.dark {
+  background: rgba(60, 60, 65, 0.6);
+  border-right-color: rgba(255, 255, 255, 0.18);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+/* ── 顶部 Header：Logo + 展开按钮 ─────────────────────────────── */
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  min-height: 36px;
+  flex-shrink: 0;
+}
+
+/* Logo 按钮 */
+.sidebar-logo-btn {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+.sidebar-logo-btn:hover { opacity: 0.7; }
+
+/* 展开/收起按钮——收起态隐藏，展开态显示 */
+.sidebar-collapse-btn {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  transition: opacity var(--sidebar-transition), width var(--sidebar-transition);
+  flex-shrink: 0;
+}
+.sidebar-collapse-btn:hover { background: rgba(128,128,128,0.15); }
+.sidebar.expanded .sidebar-collapse-btn {
+  opacity: 1;
+  width: 28px;
+}
+
+/* ── 导航列表 ───────────────────────────────────────────────────── */
+.sidebar-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  position: relative;
+}
+
+/* ── 液态药丸选中指示器 ──────────────────────────────────────────
+ * 纵向：translateY 跟随激活项
+ * 横向：width 跟随展开/收起
+ */
+.sidebar-pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+  border-radius: 12px;
+  pointer-events: none;
+  z-index: 0;
+
+  /* 液态玻璃药丸——浅色 */
+  background: rgba(255, 255, 255, 0.6);
+  border: 0.5px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+
+  /* 纵向滑动 + 宽度拉伸同步过渡 */
+  transition: transform var(--sidebar-transition);
+}
+.sidebar-pill.dark {
+  background: rgba(120, 120, 130, 0.45);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* ── 单个导航项 ─────────────────────────────────────────────────── */
+.sidebar-item {
+  position: relative;
+  z-index: 1;
+  height: 44px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 0 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  transition: opacity 0.15s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sidebar-item:hover { opacity: 0.75; }
+.sidebar-item:active { opacity: 0.55; }
+
+/* SVG 图标容器 */
+.sidebar-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  transition: color 0.2s;
+}
+
+/* 选中态图标——品牌色 */
+.sidebar-item.active .sidebar-icon {
+  color: #FF2D55;
+}
+
+/* 深色模式图标 */
+.sidebar.dark .sidebar-icon {
+  color: #9e9ea3;
+}
+.sidebar.dark .sidebar-item.active .sidebar-icon {
+  color: #FF375F;
+}
+
+/* 文字标签——收起时隐藏，展开时显示 */
+.sidebar-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #555;
+  opacity: 0;
+  max-width: 0;
+  overflow: hidden;
+  transition: opacity var(--sidebar-transition), max-width var(--sidebar-transition);
+}
+
+.sidebar.expanded .sidebar-label {
+  opacity: 1;
+  max-width: 120px;
+}
+
+/* 选中态文字加粗 + 品牌色 */
+.sidebar-item.active .sidebar-label {
+  color: #FF2D55;
+  font-weight: 700;
+}
+
+/* 深色模式文字 */
+.sidebar.dark .sidebar-label {
+  color: #b0b0b5;
+}
+.sidebar.dark .sidebar-item.active .sidebar-label {
+  color: #FF375F;
+}
+
+/* ── 侧边栏底部：头像 + 设置 ──────────────────────────────────── */
+.sidebar-footer {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 0.5px solid rgba(128, 128, 128, 0.2);
+  margin-top: 8px;
+}
+
+.sidebar-footer-item {
+  height: 44px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 0 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  transition: opacity 0.15s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sidebar-footer-item:hover { opacity: 0.75; }
+.sidebar-footer-item:active { opacity: 0.55; }
+
+/* 头像圆形容器——与 .sidebar-icon 同为 24px 保持水平对齐 */
+.sidebar-avatar {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(128, 128, 128, 0.15);
+}
+.sidebar.dark .sidebar-avatar {
+  background: rgba(200, 200, 200, 0.12);
+}
+
+/* 底部项的图标和文字复用主导航的颜色规则 */
+.sidebar-footer-item .sidebar-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+}
+.sidebar.dark .sidebar-footer-item .sidebar-icon {
+  color: #9e9ea3;
+}
+.sidebar-footer-item.active .sidebar-icon {
+  color: #FF2D55;
+}
+.sidebar.dark .sidebar-footer-item.active .sidebar-icon {
+  color: #FF375F;
+}
+.sidebar-footer-item.active .sidebar-label {
+  color: #FF2D55;
+  font-weight: 700;
+}
+.sidebar.dark .sidebar-footer-item.active .sidebar-label {
+  color: #FF375F;
+}
+
+/* ── 右侧内容区 ─────────────────────────────────────────────────── */
+.main-content {
+  flex: 1;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+
+  /* 内容水平+垂直居中（内容少时居中，内容多时正常滚动） */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 让 React Native Web 渲染的根 View 撑满或居中 */
+.main-content > * {
+  width: 100%;
+  max-width: 100%;
+}

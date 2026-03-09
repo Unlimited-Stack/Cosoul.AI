@@ -1,0 +1,7 @@
+node_modules
+
+# MacOS 文件系统生成的隐藏文件，不需要提交
+.DS_Store
+
+# Claude Code 本地数据（命名 volume，不提交）
+.devcontainer/claude-home/

@@ -1,0 +1,68 @@
+
+> web@1.0.0 build
+> next build
+
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+▲ Next.js 16.1.5 (Turbopack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+
+> Build error occurred
+Error: Turbopack build failed with 3 errors:
+./node_modules/expo-modules-core/src/index.ts
+Missing module type
+The module type effect must be applied before adding Ecmascript transforms
+
+
+./node_modules/expo-modules-core/src/index.ts
+Unknown module type
+This module doesn't have an associated type. Use a known file extension, or register a loader for it.
+
+Read more: https://nextjs.org/docs/app/api-reference/next-config-js/turbo#webpack-loaders
+
+
+./node_modules/react-native/Libraries/Utilities/codegenNativeComponent.js:13:13
+Parsing ecmascript source code failed
+[0m [90m 11 |[39m [90m// TODO: move this file to shims/ReactNative (requires React update and sync)[39m
+ [90m 12 |[39m
+[31m[1m>[22m[39m[90m 13 |[39m [36mimport[39m type {[33mHostComponent[39m} [36mfrom[39m [32m'../../src/private/types/HostComponent'[39m[33m;[39m
+ [90m    |[39m             [31m[1m^[22m[39m
+ [90m 14 |[39m
+ [90m 15 |[39m [36mimport[39m requireNativeComponent [36mfrom[39m [32m'../../Libraries/ReactNative/requireNativeComponent'[39m[33m;[39m
+ [90m 16 |[39m [36mimport[39m [33mUIManager[39m [36mfrom[39m [32m'../ReactNative/UIManager'[39m[33m;[39m[0m
+
+Expected ',', got '{'
+
+Import traces:
+  Client Component Browser:
+    ./node_modules/react-native/Libraries/Utilities/codegenNativeComponent.js [Client Component Browser]
+    ./node_modules/react-native-safe-area-context/lib/module/specs/NativeSafeAreaView.js [Client Component Browser]
+    ./node_modules/react-native-safe-area-context/lib/module/SafeAreaView.js [Client Component Browser]
+    ./node_modules/react-native-safe-area-context/lib/module/index.js [Client Component Browser]
+    ./packages/ui/dist/index.js [Client Component Browser]
+    ./apps/web/app/ai-core/page.tsx [Client Component Browser]
+    ./apps/web/app/ai-core/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./node_modules/react-native/Libraries/Utilities/codegenNativeComponent.js [Client Component SSR]
+    ./node_modules/react-native-safe-area-context/lib/module/specs/NativeSafeAreaView.js [Client Component SSR]
+    ./node_modules/react-native-safe-area-context/lib/module/SafeAreaView.js [Client Component SSR]
+    ./node_modules/react-native-safe-area-context/lib/module/index.js [Client Component SSR]
+    ./packages/ui/dist/index.js [Client Component SSR]
+    ./apps/web/app/ai-core/page.tsx [Client Component SSR]
+    ./apps/web/app/ai-core/page.tsx [Server Component]
+
+
+    at ignore-listed frames
+npm error Lifecycle script `build` failed with error:
+npm error code 1
+npm error path /workspaces/apps/web
+npm error workspace web@1.0.0
+npm error location /workspaces/apps/web
+npm error command failed
+npm error command sh -c next build

@@ -1,0 +1,9 @@
+node_modules
+npm-debug.log
+.git
+.next
+.expo
+dist
+build
+.env*
+!.env.example

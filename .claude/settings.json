@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build)",
+      "Bash(ls -la /workspaces/apps/native/app/\\\\\\(tabs\\\\\\)/)",
+      "Bash(npm install)",
+      "Bash(npx turbo run build --filter=@repo/ui)",
+      "Bash(npx turbo run build --filter=web)",
+      "Bash(npx next build --no-turbopack)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/ai-core)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(pkill -f \"tsup\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/profile)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/messages)",
+      "Bash(ls /workspaces/node_modules/react-native-safe-area-context/lib/module/*.web.*)",
+      "Bash(ls /workspaces/node_modules/react-native-safe-area-context/lib/module/index*)"
+    ],
+    "additionalDirectories": [
+      "/workspaces/packages/ui/src"
+    ]
+  }
+}

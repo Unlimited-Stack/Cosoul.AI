@@ -1,0 +1,8 @@
+{
+  // 注意：workspaces 下依赖通常 hoist 到仓库根目录
+  // 这里直接指向根的 node_modules，避免本包缺少本地 node_modules 导致找不到文件
+  "extends": "../../node_modules/expo/tsconfig.base.json",
+  "compilerOptions": {
+    "strict": true
+  }
+}
