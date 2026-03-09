@@ -1,4 +1,4 @@
-# AI 相片锐评家 — 项目全景指南
+# Cosoul.AI — AI 社区框架 项目全景指南
 
 > **目的**：让团队工程师或 Coding Agent 在 5 分钟内掌握项目全貌，配置完环境后直接上手开发。
 >
@@ -8,7 +8,9 @@
 
 ## 1. 项目简介
 
-**AI 相片锐评家**（AI Photo Reviewer）是一款跨平台 AI 图片评论应用。用户上传照片后，AI 会根据不同"人格风格"（毒舌 / 彩虹屁 / 专业摄影师）对构图、光线、色彩等维度进行锐评，以流式输出的方式呈现结果。
+**Cosoul.AI** 是一个基于数字孪生 Agent 的 AI 社交匹配社区框架。每位用户拥有一个 AI 分身（Agent），能够自主理解需求、搜寻匹配对象、代理协商，最终由真人确认达成连接。
+
+核心玩法：用户发布需求 → Agent 自动三层漏斗匹配（L0硬过滤 / L1语义检索 / L2沙盒谈判） → 四种消息交互模式 → 真人确认。
 
 项目采用 **Turborepo Monorepo** 架构，Web 端与 Native 端共享超过 80% 的 UI 代码。
 
@@ -30,6 +32,9 @@
 | **react-native-svg** | ^15.15.3 | 跨平台 SVG 图标 |
 | **TypeScript** | 5.5.4 (web/ui) / ~5.9.2 (native) | 类型系统 |
 | **tsup** | ^8.0.1 | 共享 UI 包构建工具 |
+| **PostgreSQL** | 16 | 数据库（+ pgvector 扩展） |
+| **Drizzle ORM** | latest | 类型安全 ORM（SQL-first） |
+| **pgvector** | latest | PostgreSQL 向量索引扩展 |
 
 ---
 
@@ -39,6 +44,7 @@
 |------|------|----------|
 | **Web**（Next.js） | `3030` | `npm run dev:web` |
 | **Native**（Expo Metro） | `8089` | `npm run dev:native` |
+| **PostgreSQL** | `5432` | Docker Compose 自动启动 |
 | **ngrok Inspector** | `4040` | Expo tunnel 自动启用 |
 
 > **重要**：Native 使用 `--tunnel` 模式通过 ngrok 暴露 Metro，手机扫码即可连接。
@@ -48,31 +54,36 @@
 ## 4. 仓库结构
 
 ```
-/workspaces/
+Cosoul.AI/
 ├── .devcontainer/              # Docker 开发容器配置
 │   ├── Dockerfile
-│   ├── docker-compose.yml
+│   ├── docker-compose.yml      # 含 PostgreSQL + pgvector 服务
 │   └── devcontainer.json
 ├── apps/
 │   ├── web/                    # Next.js 16 Web 应用
 │   │   ├── app/                # App Router 路由目录
 │   │   │   ├── page.tsx        # 根路径重定向 → /feed
 │   │   │   ├── layout.tsx      # 根布局（AppShell 包裹）
-│   │   │   ├── api/critique/route.ts  # AI 锐评 API 代理
-│   │   │   ├── feed/page.tsx          # 首页
+│   │   │   ├── api/
+│   │   │   │   ├── task/route.ts           # 任务 CRUD API
+│   │   │   │   ├── task/[id]/route.ts      # 单任务操作
+│   │   │   │   ├── task/[id]/run/route.ts  # FSM 步进
+│   │   │   │   ├── task/[id]/intent/route.ts # 用户意图
+│   │   │   │   ├── handshake/route.ts      # 握手协议入口
+│   │   │   │   ├── llm/chat/route.ts       # LLM 通用对话
+│   │   │   │   └── embedding/route.ts      # Embedding 服务
+│   │   │   ├── feed/page.tsx          # 瀑布流信息流
 │   │   │   ├── cards/page.tsx         # 发现
-│   │   │   ├── messages/page.tsx      # 消息
-│   │   │   ├── ai-core/page.tsx       # 锐评（含图片选择+压缩）
+│   │   │   ├── messages/page.tsx      # 消息交互（四种模式）
+│   │   │   ├── publish/page.tsx       # 发布需求
+│   │   │   ├── ai-core/page.tsx       # AI 核心交互区
 │   │   │   ├── profile/page.tsx       # 我的
 │   │   │   └── settings/page.tsx      # 设置
 │   │   ├── components/
 │   │   │   ├── AppShell.tsx    # ThemeProvider + 分栏布局壳
 │   │   │   └── Sidebar.tsx     # 液态玻璃侧边栏
 │   │   ├── stubs/              # Web 端原生模块 Stub
-│   │   │   ├── expo-blur.js
-│   │   │   ├── react-native-svg.js
-│   │   │   └── react-native-safe-area-context.js
-│   │   ├── styles/global.css   # 全局样式（侧边栏、动画、布局）
+│   │   ├── styles/global.css   # 全局样式
 │   │   ├── next.config.js      # Turbopack + 模块别名配置
 │   │   └── package.json
 │   └── native/                 # Expo 55 React Native 应用
@@ -82,40 +93,57 @@
 │       │   ├── settings.tsx    # 设置页（Stack modal）
 │       │   └── (tabs)/         # Tab 导航组
 │       │       ├── _layout.tsx # Tab 布局（LiquidTabBar）
-│       │       ├── feed.tsx    # 首页
+│       │       ├── feed.tsx    # 瀑布流
 │       │       ├── cards.tsx   # 发现
 │       │       ├── index.tsx   # 消息
-│       │       ├── ai-core.tsx # 锐评（expo-image-picker）
+│       │       ├── ai-core.tsx # AI 核心
 │       │       └── profile.tsx # 我的
-│       ├── app.json            # Expo 配置
+│       ├── app.json
 │       └── package.json
 ├── packages/
 │   ├── ui/                     # 共享 UI 包（@repo/ui）
 │   │   ├── src/
 │   │   │   ├── index.tsx       # 统一导出入口
 │   │   │   ├── theme/
-│   │   │   │   └── ThemeContext.tsx  # 主题系统（深/浅/跟随系统）
+│   │   │   │   └── ThemeContext.tsx  # 主题系统
 │   │   │   ├── components/
 │   │   │   │   ├── TabIcons.tsx     # 跨平台 SVG 图标集
 │   │   │   │   ├── LiquidTabBar.tsx # Native 液态玻璃 TabBar
-│   │   │   │   └── TabIcon.tsx      # 基础 TabIcon 组件
+│   │   │   │   └── TabIcon.tsx
 │   │   │   └── screens/
-│   │   │       ├── MessageScreen.tsx
-│   │   │       ├── FeedScreen.tsx
-│   │   │       ├── CardsScreen.tsx
-│   │   │       ├── AiCoreScreen.tsx     # AI 锐评核心 UI
-│   │   │       ├── ProfileScreen.tsx
-│   │   │       ├── SettingsScreen.tsx
-│   │   │       ├── critiquePrompts.ts   # AI 人格/模型配置
-│   │   │       └── sseParser.ts         # SSE 流解析器
-│   │   ├── tsup.config.ts      # 构建配置（external 模块列表）
+│   │   │       ├── MessageScreen.tsx    # 消息交互（四种模式）
+│   │   │       ├── FeedScreen.tsx       # 瀑布流信息流
+│   │   │       ├── CardsScreen.tsx      # 发现卡片
+│   │   │       ├── AiCoreScreen.tsx     # AI 核心交互区
+│   │   │       ├── PublishScreen.tsx    # 发布需求 UI
+│   │   │       ├── TaskDetailScreen.tsx # 任务详情
+│   │   │       ├── AgentChatScreen.tsx  # Agent 对话
+│   │   │       ├── ProfileScreen.tsx    # 个人主页
+│   │   │       ├── SettingsScreen.tsx   # 设置
+│   │   │       └── sseParser.ts        # SSE 流解析器
+│   │   ├── tsup.config.ts
 │   │   └── package.json
-│   ├── typescript-config/      # 共享 TS 配置
-│   │   ├── base.json
-│   │   ├── nextjs.json
-│   │   └── react-native-library.json
-│   └── eslint-config-custom/   # 共享 ESLint 配置
+│   ├── task-agent/             # Agent 核心包（@repo/task-agent）
+│   │   ├── src/
+│   │   │   ├── index.ts
+│   │   │   ├── fsm/           # 状态机 + Schema
+│   │   │   ├── dispatcher/    # L0/L1/L2 匹配漏斗
+│   │   │   ├── llm/           # 多厂商 LLM 适配（BaseModel）
+│   │   │   ├── rag/           # Embedding + 向量检索
+│   │   │   ├── protocol/      # 握手协议 + 幂等
+│   │   │   ├── storage/       # PostgreSQL + task.md 持久化
+│   │   │   ├── memory/        # 记忆压缩 + 上下文管理
+│   │   │   ├── intake/        # 多轮对话需求收集
+│   │   │   └── skills/        # Skill 路由（预留）
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   └── typescript-config/      # 共享 TS 配置
+├── .data/                      # Agent 本地数据
+│   ├── User.md                 # 用户画像
+│   ├── task_agents/            # 任务数据（task.md）
+│   └── logs/                   # 系统日志
 ├── docs/                       # 项目文档
+├── drizzle.config.ts           # 数据库迁移配置
 ├── turbo.json                  # Turborepo 任务编排
 └── package.json                # 根 package.json（workspaces）
 ```
@@ -130,16 +158,42 @@
 
 ```bash
 # 1. 克隆仓库
-git clone <repo-url> && cd ai-photo-reviewer
+git clone <repo-url> && cd Cosoul.AI
 
 # 2. 用 VS Code 打开，选择 "Reopen in Container"
-#    容器会自动安装依赖、配置代理
+#    容器会自动安装依赖、启动 PostgreSQL
 
 # 3. 或者手动安装
 npm install
 ```
 
-### 5.2 启动开发服务器
+### 5.2 配置环境变量
+
+```bash
+cp .env.example .env
+```
+
+必填项：
+```env
+DATABASE_URL=postgresql://user:pass@localhost:5432/cosoul_agent
+DASHSCOPE_API_KEY=sk-xxxxxxxxxxxx   # 阿里千问/Embedding
+```
+
+可选项：
+```env
+OPENAI_API_KEY=xxx                  # OpenAI
+ANTHROPIC_API_KEY=xxx               # Claude
+DEFAULT_LLM_PROVIDER=qwen
+DEFAULT_LLM_MODEL=qwen3-max
+```
+
+### 5.3 初始化数据库
+
+```bash
+npx drizzle-kit migrate
+```
+
+### 5.4 启动开发服务器
 
 ```bash
 # 同时启动 Web + Native + UI 包监听
@@ -155,7 +209,7 @@ npm run dev:native       # → Expo Metro @ :8089 (tunnel 模式)
 npm run dev:mobile:clear
 ```
 
-### 5.3 构建
+### 5.5 构建
 
 ```bash
 # 构建所有包
@@ -163,14 +217,6 @@ npm run build
 
 # 仅构建共享 UI 包（修改 packages/ui 后必须执行）
 npx turbo build --filter=@repo/ui
-```
-
-### 5.4 环境变量
-
-Web 端需要在 `apps/web/.env.local` 中配置：
-
-```env
-DASHSCOPE_API_KEY=sk-xxxxxxxxxxxx   # 阿里百炼 API Key（服务端专用）
 ```
 
 ---
@@ -182,19 +228,19 @@ DASHSCOPE_API_KEY=sk-xxxxxxxxxxxx   # 阿里百炼 API Key（服务端专用）
 ```
 apps/web ──────┐
                ├──→ packages/ui (@repo/ui)
-apps/native ───┘         │
-                         ├──→ react / react-native
-                         ├──→ react-native-svg
-                         ├──→ expo-blur (external)
-                         └──→ react-native-safe-area-context (external)
+apps/native ───┤
+               └──→ packages/task-agent (@repo/task-agent)
+                         │
+                         ├──→ PostgreSQL + pgvector
+                         ├──→ OpenAI / Claude / Qwen LLM
+                         └──→ DashScope Embedding
 ```
 
 **`@repo/ui` 构建策略**：
-
 - 使用 `tsup` 打包为 CJS + ESM，输出到 `dist/`
 - 顶部注入 `'use client'` 指令（Next.js 客户端组件）
-- `react`、`react-native`、`react-native-svg`、`expo-blur`、`react-native-safe-area-context` 声明为 external，由各端自行解析
-- **改动 `packages/ui/src/` 后需重新 `npx turbo build --filter=@repo/ui`**，或用 `npm run dev` 启动时 tsup 会自动 watch
+- `react`、`react-native`、`react-native-svg`、`expo-blur`、`react-native-safe-area-context` 声明为 external
+- **改动 `packages/ui/src/` 后需重新 `npx turbo build --filter=@repo/ui`**，或用 `npm run dev` 时 tsup 自动 watch
 
 ### 6.2 跨平台适配策略
 
@@ -213,19 +259,17 @@ apps/native ───┘         │
 
 ```tsx
 // 共享组件声明可选回调
-interface AiCoreScreenProps {
-  onPickImage: () => Promise<string | null>;
+interface ScreenProps {
+  onAction: () => Promise<void>;
   apiBaseUrl: string;
 }
 
-// Web 端注入浏览器 File API
-<AiCoreScreen onPickImage={webPickImage} apiBaseUrl="/api/critique" />
+// Web 端注入浏览器 API
+<Screen onAction={webHandler} apiBaseUrl="/api/..." />
 
-// Native 端注入 expo-image-picker
-<AiCoreScreen onPickImage={nativePickImage} apiBaseUrl="http://localhost:3030/api/critique" />
+// Native 端注入 Expo SDK
+<Screen onAction={nativeHandler} apiBaseUrl="http://localhost:3030/api/..." />
 ```
-
-同理，`ProfileScreen` 的 `onOpenSettings` 和 `showHeader`，`SettingsScreen` 的 `onGoBack` 均采用此模式。
 
 ---
 
@@ -259,18 +303,13 @@ interface AiCoreScreenProps {
 |----------|------|------|
 | `MessageIcon` | 消息 Tab | 聊天气泡 |
 | `CommunityIcon` | 首页 Tab | 多人剪影 |
-| `PlusCircleIcon` | 锐评 Tab | 圆圈加号 |
+| `PlusCircleIcon` | 发布/AI核心 Tab | 圆圈加号 |
 | `CompassIcon` | 发现 Tab | 指南针 |
 | `PersonIcon` | 我的 / 头像 | 人物轮廓 |
 | `SettingsIcon` | 设置入口 | 齿轮 |
 | `ChevronLeftIcon` | 返回按钮 | 左箭头 `<` |
 | `PaletteIcon` | Logo | 调色盘 |
-| `SidebarToggleIcon` | 侧边栏展开/收起 | 面板+箭头（支持 `flipped` prop） |
-
-**跨平台原理**：
-
-- **Native**：直接使用 `react-native-svg`（原生渲染）
-- **Web**：通过 `stubs/react-native-svg.js` 将 `Svg` → `<svg>`、`Path` → `<path>` 等映射为 HTML SVG 元素
+| `SidebarToggleIcon` | 侧边栏展开/收起 | 面板+箭头 |
 
 ### 7.3 Web 端 UI
 
@@ -286,7 +325,7 @@ interface AiCoreScreenProps {
 │ │ [首页]   │     ┌─────────────┐            ││
 │ │ [发现]   │     │ Page Content│            ││
 │ │ [消息]   │     └─────────────┘            ││
-│ │ [锐评]   │                                ││
+│ │ [发布]   │                                ││
 │ │          │                                ││
 │ │ ──────── │                                ││
 │ │ [头像]   │                                ││
@@ -297,25 +336,23 @@ interface AiCoreScreenProps {
 
 #### 侧边栏特性（Sidebar.tsx + global.css）
 
-- **展开/收起**：点击 Logo 或展开按钮切换，CSS transition 动画（0.32s 贝塞尔曲线）
-  - 收起宽度：`60px`（仅图标）
-  - 展开宽度：`192px`（图标 + 文字）
-- **液态玻璃效果**：`backdrop-filter: blur(48px) saturate(2.0)`，浅色 `rgba(210,210,215,0.55)` / 深色 `rgba(60,60,65,0.6)`
-- **药丸选中指示器**：绝对定位，`translateY` 随 tab 切换滑动，进入 /profile 或 /settings 时 `opacity: 0` 隐藏
-- **底部区域**：头像（→ /profile）+ 设置齿轮（→ /settings），通过 CSS 分割线与主导航区分
+- **展开/收起**：CSS transition 动画（0.32s 贝塞尔曲线），收起 60px / 展开 192px
+- **液态玻璃效果**：`backdrop-filter: blur(48px) saturate(2.0)`
+- **药丸选中指示器**：绝对定位，`translateY` 随 tab 切换滑动
+- **底部区域**：头像（→ /profile）+ 设置齿轮（→ /settings）
 
 #### Web 路由映射
 
-| URL | 页面 | 共享组件 | 平台包装说明 |
-|-----|------|----------|--------------|
+| URL | 页面 | 共享组件 | 说明 |
+|-----|------|----------|------|
 | `/` | 重定向 → `/feed` | - | `redirect()` |
-| `/feed` | 首页 | `FeedScreen` | 直接渲染 |
-| `/cards` | 发现 | `CardsScreen` | 直接渲染 |
-| `/messages` | 消息 | `MessageScreen` | 直接渲染 |
-| `/ai-core` | 锐评 | `AiCoreScreen` | 注入 Web File API 图片选择 + 压缩 |
-| `/profile` | 我的 | `ProfileScreen` | `showHeader={false}`（导航由 Sidebar 处理） |
-| `/settings` | 设置 | `SettingsScreen` | `onGoBack → router.push("/profile")`，顶部对齐 |
-| `/api/critique` | AI API | - | Next.js Route Handler，代理阿里百炼 API |
+| `/feed` | 瀑布流 | `FeedScreen` | 社区信息流 |
+| `/cards` | 发现 | `CardsScreen` | 探索卡片 |
+| `/messages` | 消息 | `MessageScreen` | Agent 四种交互模式 |
+| `/publish` | 发布需求 | `PublishScreen` | Intake 多轮对话 |
+| `/ai-core` | AI核心 | `AiCoreScreen` | AI 核心交互区 |
+| `/profile` | 我的 | `ProfileScreen` | 任务管理、Agent 设置 |
+| `/settings` | 设置 | `SettingsScreen` | 主题切换等 |
 
 ### 7.4 Native 端 UI
 
@@ -324,12 +361,12 @@ interface AiCoreScreenProps {
 ```
 Stack (_layout.tsx, ThemeProvider 包裹)
 ├── (tabs)/ — Tab 导航组
-│   ├── feed       → 首页（FeedScreen）
+│   ├── feed       → 瀑布流（FeedScreen）
 │   ├── cards      → 发现（CardsScreen）
-│   ├── ai-core    → 锐评（AiCoreScreen + expo-image-picker）
+│   ├── ai-core    → AI核心（AiCoreScreen）
 │   ├── index      → 消息（MessageScreen）
-│   └── profile    → 我的（ProfileScreen + onOpenSettings）
-└── settings — Stack modal 页面（SettingsScreen + onGoBack）
+│   └── profile    → 我的（ProfileScreen）
+└── settings — Stack modal 页面（SettingsScreen）
 ```
 
 #### Tab 顺序（从左到右）
@@ -338,63 +375,79 @@ Stack (_layout.tsx, ThemeProvider 包裹)
 |------|--------|------|------|
 | 1 | `feed` | 首页 | CommunityIcon |
 | 2 | `cards` | 发现 | CompassIcon |
-| 3 | `ai-core` | 锐评 | PlusCircleIcon |
+| 3 | `ai-core` | AI核心 | PlusCircleIcon |
 | 4 | `index` | 消息 | MessageIcon |
 | 5 | `profile` | 我的 | PersonIcon |
 
-#### LiquidTabBar 特性（LiquidTabBar.tsx）
+#### LiquidTabBar 特性
 
-- **浮空定位**：`position: absolute`，距底部 `12px + SafeArea`，左右各 `16px` 间距
-- **毛玻璃效果**：
-  - iOS：`expo-blur` `BlurView`（`intensity=70`），真实原生模糊
-  - Android：半透明背景色降级
+- **浮空定位**：`position: absolute`，距底部 `12px + SafeArea`
+- **毛玻璃效果**：iOS 使用 `expo-blur`（原生模糊），Android 半透明降级
 - **药丸动画**：`Animated.spring`（`damping=18, stiffness=180, mass=0.9`），`useNativeDriver: true`
-
-#### ProfileScreen 平台差异
-
-| 特性 | Native | Web |
-|------|--------|-----|
-| 顶部栏 | 显示（头像左 + 齿轮右） | 隐藏（`showHeader={false}`） |
-| 设置入口 | 齿轮按钮 → `router.push("/settings")` | 侧边栏底部齿轮 |
-| 设置返回 | `router.back()` | `router.push("/profile")` |
 
 ---
 
-## 8. AI 锐评功能
+## 8. TaskAgent 核心功能
 
 ### 8.1 架构流程
 
 ```
-[用户选择照片] → [选择人格风格 + AI 模型] → [点击"开始锐评"]
-      ↓                                           ↓
-  Native: expo-image-picker              Web: File API + Canvas 压缩
-      ↓                                           ↓
-  base64 data URI ──────────────→ POST /api/critique
-                                          ↓
-                              Next.js Route Handler（服务端代理）
-                                          ↓
-                              阿里百炼 Coding Plan API
-                              (https://coding.dashscope.aliyuncs.com)
-                                          ↓
-                              SSE 流式响应 / 非流式响应
-                                          ↓
-                              AiCoreScreen 逐字渲染结果
+[用户发布需求] → [Intake 多轮对话] → [生成 task.md (Drafting)]
+      ↓                                       ↓
+  PublishScreen                          FSM 状态机驱动
+      ↓                                       ↓
+  结构化字段提取              L0 硬过滤 (PostgreSQL) → L1 语义检索 (pgvector)
+  (activity/vibe/plan)                         ↓
+                                         候选池 Top-K
+                                               ↓
+                                    L2 沙盒谈判 (Agent ↔ Agent)
+                                               ↓
+                                    Waiting_Human → 真人确认
+                                               ↓
+                                    Closed / Revising / Listening
 ```
 
-### 8.2 锐评人格
+### 8.2 四种消息交互模式
 
-| Key | 标签 | 风格 |
-|-----|------|------|
-| `roast` | 🔥 毒舌吐槽 | 极度刻薄但幽默，脱口秀风格 |
-| `flatter` | 🌈 彩虹屁 | 极度夸赞、辞藻华丽 |
-| `pro` | 🧐 专业摄影师 | 专业客观有建设性 |
+| 模式 | 发起方 | 接收方 | 实现方式 |
+|------|--------|--------|----------|
+| A人-B人 | 真人 | 真人 | 常规 IM 聊天 |
+| A_Agent-B_Agent | Agent | Agent | 握手协议 JSON 自动谈判 |
+| A_Agent-B人 | Agent | 真人 | Agent 发起 → 推送通知 → 人回复 |
+| A人-B_Agent | 真人 | Agent | 人发消息 → Agent LLM 响应（SSE 流式） |
 
-### 8.3 可用模型
+### 8.3 FSM 状态机
 
-| ID | 显示名 |
-|----|--------|
-| `kimi-k2.5` | Kimi K2.5 |
-| `qwen3.5-plus` | Qwen 3.5+ |
+9 种状态，10 种合法迁移：
+
+```
+Drafting     → [Searching, Cancelled]
+Searching    → [Negotiating, Timeout, Failed, Cancelled]
+Negotiating  → [Waiting_Human, Timeout, Failed, Cancelled]
+Waiting_Human→ [Revising, Listening, Closed, Cancelled]
+Listening    → [Waiting_Human, Cancelled]
+Revising     → [Searching, Cancelled]
+Closed       → [Waiting_Human]  // 重开
+Timeout      → [Searching]      // 重试
+Failed       → [Searching]      // 重试
+```
+
+### 8.4 多厂商 LLM 适配
+
+以 OpenAI 格式为标准的 `BaseModel` 抽象类，三个 Provider 实现：
+
+| Provider | 模型 | 用途 |
+|----------|------|------|
+| QwenProvider | qwen3-max, qwen-turbo | 主力（DashScope 接口） |
+| OpenAIProvider | GPT-4o, GPT-4o-mini | 备选 |
+| ClaudeProvider | Claude 系列 | 备选 |
+
+### 8.5 数据存储
+
+- **task.md**（YAML头 + Markdown正文）= 唯一真相源
+- **PostgreSQL** = 派生层（可从 task.md 重建）
+- **pgvector** = 向量索引（HNSW，`vector(1024)` 类型）
+- 两阶段原子写 + 乐观锁 + 补偿队列
 
 ---
 
@@ -420,7 +473,7 @@ Stack (_layout.tsx, ThemeProvider 包裹)
 6. **如果是 Tab 页**：
    - 更新 `apps/web/components/Sidebar.tsx` 的 `NAV_ITEMS`
    - 更新 `apps/native/app/(tabs)/_layout.tsx` 的 `Tabs.Screen` 顺序
-   - 更新 `packages/ui/src/components/LiquidTabBar.tsx` 的 `TABS` 数组（顺序须与 `_layout.tsx` 一致）
+   - 更新 `packages/ui/src/components/LiquidTabBar.tsx` 的 `TABS` 数组
 
 ### 9.2 新增 SVG 图标
 
@@ -431,13 +484,20 @@ Stack (_layout.tsx, ThemeProvider 包裹)
 
 ### 9.3 原生模块 Web Stub
 
-如果新引入了 React Native 专属模块（如新的 Expo SDK 模块），需要：
+如果新引入了 React Native 专属模块，需要：
 
 1. 在 `apps/web/stubs/` 创建对应的 `.js` stub 文件
 2. 在 `apps/web/next.config.js` 的 `turbopack.resolveAlias` 中添加映射
 3. 在 `packages/ui/tsup.config.ts` 的 `external` 数组中添加该模块
 
-### 9.4 常见问题
+### 9.4 数据库变更流程
+
+1. 修改 `packages/task-agent/src/storage/schema.db.ts` 中的 Drizzle 表定义
+2. 生成迁移：`npx drizzle-kit generate`
+3. 执行迁移：`npx drizzle-kit migrate`
+4. 验证：检查 PostgreSQL 表结构与代码一致
+
+### 9.5 常见问题
 
 | 问题 | 原因 | 解决方案 |
 |------|------|----------|
@@ -446,11 +506,12 @@ Stack (_layout.tsx, ThemeProvider 包裹)
 | Web 出现 `Module not found: react-native-xxx` | 缺少 Web Stub | 见 9.3 创建 stub |
 | Native HMR 失效 | Metro 缓存异常 | `npm run dev:mobile:clear` |
 | 手机端加载慢 | ngrok tunnel 首次全量下载 | 等待首次加载完成，后续为增量 HMR |
+| PostgreSQL 连接失败 | Docker 服务未启动 | `docker compose up -d` 或检查 `DATABASE_URL` |
+| pgvector 扩展未找到 | 未安装 pgvector | 确保使用 `pgvector/pgvector:pg16` 镜像 |
 
-### 9.5 代码风格
+### 9.6 代码风格
 
 - **格式化**：`npm run format`（Prettier 3.1.1）
-- **文件注释**：每个文件顶部保留 JSDoc 风格注释说明用途
 - **命名**：组件 PascalCase，变量/函数 camelCase，常量 UPPER_SNAKE_CASE
 - **Git 提交前缀**：`feat:`, `fix:`, `docs:`, `refactor:` 等
 
@@ -462,44 +523,40 @@ Stack (_layout.tsx, ThemeProvider 包裹)
 
 | 文件 | 作用 |
 |------|------|
-| `/workspaces/package.json` | 根 Monorepo 配置，workspaces 声明 |
-| `/workspaces/turbo.json` | Turborepo 任务编排（build/dev/lint/clean） |
-| `/workspaces/apps/web/next.config.js` | Turbopack 别名、Web 扩展名解析 |
-| `/workspaces/apps/native/app.json` | Expo 配置（scheme、plugins、permissions） |
-| `/workspaces/packages/ui/tsup.config.ts` | UI 包构建（entry、external、format） |
-| `/workspaces/.devcontainer/devcontainer.json` | Docker 开发容器 + 端口转发 + VS Code 插件 |
+| `package.json` | 根 Monorepo 配置，workspaces 声明 |
+| `turbo.json` | Turborepo 任务编排（build/dev/lint/clean） |
+| `drizzle.config.ts` | 数据库迁移配置 |
+| `apps/web/next.config.js` | Turbopack 别名、Web 扩展名解析 |
+| `apps/native/app.json` | Expo 配置（scheme、plugins、permissions） |
+| `packages/ui/tsup.config.ts` | UI 包构建（entry、external、format） |
+| `.devcontainer/devcontainer.json` | Docker 开发容器 + 端口转发 + VS Code 插件 |
 
 ### 核心源码
 
 | 文件 | 作用 |
 |------|------|
 | `packages/ui/src/index.tsx` | 共享 UI 统一导出入口 |
-| `packages/ui/src/theme/ThemeContext.tsx` | 主题系统（Provider + Hook + 颜色定义） |
+| `packages/ui/src/theme/ThemeContext.tsx` | 主题系统 |
 | `packages/ui/src/components/TabIcons.tsx` | 跨平台 SVG 图标集 |
 | `packages/ui/src/components/LiquidTabBar.tsx` | Native 液态玻璃底部导航栏 |
-| `packages/ui/src/screens/AiCoreScreen.tsx` | AI 锐评核心 UI |
-| `packages/ui/src/screens/critiquePrompts.ts` | AI 人格/模型配置 |
+| `packages/ui/src/screens/MessageScreen.tsx` | 消息交互（四种模式） |
+| `packages/ui/src/screens/PublishScreen.tsx` | 发布需求 UI |
 | `packages/ui/src/screens/sseParser.ts` | SSE 流式响应解析 |
+| `packages/task-agent/src/fsm/` | FSM 状态机 + Schema |
+| `packages/task-agent/src/dispatcher/` | L0/L1/L2 匹配漏斗 |
+| `packages/task-agent/src/llm/` | 多厂商 LLM 适配 |
+| `packages/task-agent/src/storage/` | PostgreSQL + task.md 持久化 |
 | `apps/web/components/Sidebar.tsx` | Web 液态玻璃侧边栏 |
-| `apps/web/components/AppShell.tsx` | Web 应用外壳（ThemeProvider + 布局） |
-| `apps/web/styles/global.css` | 全局样式（侧边栏动画、布局、玻璃效果） |
-| `apps/web/app/api/critique/route.ts` | AI API 代理（阿里百炼 → SSE） |
-
-### Web Stub 文件
-
-| 文件 | 替代模块 |
-|------|----------|
-| `apps/web/stubs/react-native-svg.js` | `react-native-svg` → HTML SVG 元素 |
-| `apps/web/stubs/expo-blur.js` | `expo-blur` → 透传 children |
-| `apps/web/stubs/react-native-safe-area-context.js` | `react-native-safe-area-context` → 零值 insets |
+| `apps/web/components/AppShell.tsx` | Web 应用外壳 |
 
 ---
 
 ## 11. DevContainer 配置摘要
 
 - **基础镜像**：Node.js 环境
+- **附加服务**：PostgreSQL 16 + pgvector（Docker Compose）
 - **持久卷**：Claude Code 认证数据 + VS Code Server 缓存（容器 rebuild 不丢失）
-- **代理**：自动配置 HTTP/HTTPS 代理指向宿主机 `host.docker.internal:7897`
-- **端口转发**：3030 (Web)、8089 (Metro)、4040 (ngrok)
+- **代理**：自动配置 HTTP/HTTPS 代理指向宿主机
+- **端口转发**：3030 (Web)、5432 (PostgreSQL)、8089 (Metro)、4040 (ngrok)
 - **预装插件**：ESLint、Prettier、Expo Tools、Claude Code、GitHub Copilot
 - **安全**：`seccomp: unconfined` + `SYS_ADMIN`（Metro/Docker 需要）

@@ -1,65 +1,121 @@
-# AI 社区 (AI Community) 
+# Cosoul.AI — AI 社交匹配社区
 
-本项目是一个AI社区。采用前沿的 `TypeScript + Next.js + Expo` (基于 Turborepo) 全栈架构，实现 Web 端与移动端 (iOS/Android) 的代码高度复用与多端同构部署。项目专为云原生环境（GitHub Codespaces）设计，无需配置本地 Xcode/Android Studio 即可完成极速跨端开发与真机调试。
+基于**数字孪生 Agent** 的智能社交匹配平台。每位用户拥有一个 AI 分身（Agent），能够自主理解需求、搜寻匹配对象、代理协商，最终由真人确认达成连接。
 
-## 🎯 核心玩法与产品形态 (MVP 阶段)
+采用 `TypeScript + Next.js + Expo` (Turborepo) 全栈架构，实现 Web 端与移动端 (iOS/Android) 代码高度复用。项目专为云原生环境（GitHub Codespaces）设计，无需配置本地 Xcode/Android Studio 即可完成极速跨端开发与真机调试。
 
-应用采用经典的“底部 5 Tab”导航结构，重点验证跨端 UI 渲染性能与 AI 数据流：
+---
 
-1. 💬 **消息/公告 (Tab 1)：** 静态 UI 展示区，用于未来承载系统通知和 AI 锐评完成的推送。
-2. 🌊 **灵感瀑布流 (Tab 2)：** 类似小红书的双列图片信息流，展示社区内被公开的精彩相片及点评，重点验证跨端复杂列表的滚动性能。
-3. ✨ **AI 锐评核心 (Tab 3 - 居中强视觉)：** 核心交互区。用户上传/拍摄相片，选择“锐评风格”（如：🔥毒舌吐槽、🌈彩虹屁、🧐专业摄影师），调用 AI 多模态大模型输出针对构图、光影、色彩的流式评价。
-4. 🃏 **Test (Tab 4)：** 类似探探的卡片滑动或简单的 3-5 张卡片随机展示，验证动画特效与状态管理。
-5. 👤 **我的主页 (Tab 5)：** 个人设置、历史锐评记录（本地/云端 Mock 数据）。
+## 核心功能
 
-## 🛠 技术栈架构 (Turborepo Monorepo)
+### TaskAgent 智能匹配系统
+
+用户发布需求后，AI Agent 自动完成三层漏斗匹配：
+
+1. **发布需求（发帖）** — 通过多轮 AI 对话收集用户需求，提取结构化信息（活动类型、氛围偏好、详细计划）
+2. **Agent 自动搜寻（L0/L1）** — L0 结构化硬过滤 + L1 向量语义检索（PostgreSQL pgvector），高效筛选候选
+3. **Agent 协商与消息交互（L2）** — Agent 间自动握手谈判，支持四种交互模式：
+   - 人 - 人：双方真人直接对话
+   - Agent - Agent：双方 AI 自动协商
+   - Agent - 人：AI 代理主动联系对方
+   - 人 - Agent：用户与对方 AI 交互
+
+### 产品页面结构（5 Tab）
+
+| Tab | 页面 | 功能 |
+|-----|------|------|
+| 1 | 消息 | Agent 交互中心，四种对话模式，匹配结果确认 |
+| 2 | 瀑布流 | 社区信息流，展示活跃需求和匹配动态 |
+| 3 | 发布需求 | AI 多轮对话收集需求，生成结构化任务 |
+| 4 | 发现 | 探索卡片，浏览社区内容 |
+| 5 | 我的 | 个人主页，任务管理，Agent 设置 |
+
+### 任务状态机（FSM）
+
+每个任务独立追踪，支持多任务并发：
+
+```
+用户发帖 → Drafting → Searching → Negotiating → Waiting_Human → Closed
+                                                      ↓
+                                              不满意 → Revising → 重新搜索
+                                              挂起 → Listening（后台持续匹配）
+```
+
+---
+
+## 技术栈架构 (Turborepo Monorepo)
 
 - **应用层 (`apps/`)**:
-  - `apps/web`: 基于 Next.js 14+ (App Router)，负责 Web 端展示与统一的 API 路由（充当后端）。
-  - `apps/native`: 基于 Expo (React Native)，负责 iOS/Android 真机渲染。
+  - `apps/web`: Next.js 16 (App Router + Turbopack)，Web 端 + 后端 API 路由
+  - `apps/native`: Expo 55 (React Native 0.83)，iOS/Android 原生应用
 - **共享层 (`packages/`)**:
-  - `packages/ui`: 多端共享的 UI 组件库。
-  - `packages/eslint-config-custom`: 统一的代码规范。
-- **开发环境**: Docker + GitHub Codespaces (内置 Node.js, Expo CLI, Ngrok 内网穿透)。
+  - `packages/ui`: 跨平台 UI 组件库（@repo/ui），含主题系统、液态玻璃导航
+  - `packages/task-agent`: Agent 核心包（@repo/task-agent），含 FSM、Dispatcher、LLM、向量搜索
+- **数据层**:
+  - PostgreSQL 16 + pgvector：任务数据、向量索引、握手记录、幂等控制
+  - task.md (YAML + Markdown)：任务单一真相源
+- **AI 层**:
+  - 多厂商 LLM 适配：OpenAI / Claude / Qwen（以 OpenAI 格式为标准的 BaseModel 抽象）
+  - DashScope text-embedding-v4：向量化引擎
+  - pgvector HNSW 索引：高性能向量检索
+- **开发环境**: Docker + GitHub Codespaces (Node.js, Expo CLI, PostgreSQL, ngrok)
 
-## 🚀 快速开始（云原生环境 / SDK 55）
+---
+
+## 快速开始（云原生环境 / SDK 55）
 
 ### 前置需求
 - GitHub Codespaces 或本地 Docker + Dev Container
 - （本地）VS Code + Dev Container Extension
+- PostgreSQL 16 + pgvector 扩展（Dev Container 已内置）
 
 ### 初次启动流程
 
 1. **打开 Dev Container**（Codespaces 自动，或本地需执行 `Dev Containers: Reopen in Container`）
    - Dockerfile 会自动安装 Node.js、npm、Expo CLI、Git LFS 等工具
+   - Docker Compose 会启动 PostgreSQL + pgvector 服务
 
 2. **安装依赖**
    ```bash
    npm install
    ```
-   - 安装根目录、apps、packages 中所有工作区的依赖
 
-3. **对齐 Expo 原生包版本（重要！）**
+3. **对齐 Expo 原生包版本**
    ```bash
    cd apps/native && npx expo install --fix && cd ../..
    ```
-   - 本项目是 npm workspaces monorepo，`npm install` 会将 `expo-router` 等包提升（hoist）到根 `node_modules`
-   - 提升后部分 Expo 原生包的资源文件路径可能错位（如 `expo-router/assets/unmatched.png` 找不到）
-   - `npx expo install --fix` 会自动将 `expo`、`expo-router`、`expo-image-picker` 等包更新到与当前 SDK 兼容的版本，修复此问题
-   - **每次执行 `npm install` 或删除 `node_modules` 重装后都需要再跑一次此命令**
+   - monorepo hoist 可能导致 Expo 原生包路径错位，此命令自动修正
+   - **每次 `npm install` 或重装 `node_modules` 后都需要再跑一次**
 
-4. **启动开发服务（Monorepo）**
+4. **配置环境变量**
+   ```bash
+   cp .env.example .env
+   ```
+   填入必要的 API Key：
+   ```env
+   DATABASE_URL=postgresql://user:pass@localhost:5432/cosoul_agent
+   DASHSCOPE_API_KEY=xxx          # 阿里千问/Embedding（必填）
+   OPENAI_API_KEY=xxx             # OpenAI（可选）
+   ANTHROPIC_API_KEY=xxx          # Claude（可选）
+   DEFAULT_LLM_PROVIDER=qwen
+   DEFAULT_LLM_MODEL=qwen3-max
+   ```
+
+5. **初始化数据库**
+   ```bash
+   npx drizzle-kit migrate
+   ```
+
+6. **启动开发服务**
    ```bash
    npm run dev
    ```
-   此命令并行启动全部三个任务：
+   并行启动：
    - **Web (Next.js)**: http://localhost:3030
-   - **Native Metro (Expo Tunnel)**: 终端输出二维码，用 Expo Go 扫码；同时 http://localhost:8089 可在浏览器预览 React Native 的 Web 渲染版本
+   - **Native Metro (Expo Tunnel)**: 终端输出二维码，用 Expo Go 扫码
    - **UI Package (tsup watch)**: 自动编译共享组件
 
 ### 预览方式
-
-`npm run dev` 一次启动所有服务，无需分别启动。
 
 | 入口 | 说明 |
 |------|------|
@@ -67,37 +123,56 @@
 | http://localhost:8089 | React Native 的浏览器渲染版（Expo Web） |
 | Expo Go 扫码 | 真机预览（iOS / Android） |
 
-- **⚠️ 禁止在真机上手动 Reload**：按 Reload 会重新下载完整 JS bundle（约 5~15MB），须经 ngrok 隧道（手机 → ngrok 云 → Codespaces → Metro）传输，实测单次耗时 **3 分钟以上**（ngrok inspector 记录：`/entry.bundle 200 OK 181s / 202s`）。**修改代码后直接保存即可**，HMR 热更新为增量推送，手机端毫秒级响应，无需 Reload。
-- 若遇到缓存、路由异常或 Metro bundling 报错（如 `Unable to resolve` 类错误），清除缓存重启：
-  ```bash
-  npm run dev:mobile:clear
-  ```
-  该命令等同于 `expo start --clear`，会清除 Metro 的模块解析缓存。
-
-### 端口与入口说明
+### 端口说明
 
 | 端口 | 进程 | 说明 |
 |------|------|------|
-| `3030` | Next.js | Web 业务入口 |
-| `8089` | Expo Metro | Native bundle 服务 + Expo Web 入口 |
-| `4040` | ngrok inspector | 显示所有经过 tunnel 的 HTTP 请求，可在 http://127.0.0.1:4040 打开。主要请求：`/entry.bundle`（JS bundle 下载）、`/message`（WebSocket，用于 HMR 热更新推送）、`/status`（Metro 状态轮询）。用于调试 tunnel 连通性和请求耗时。 |
+| `3030` | Next.js | Web 业务入口 + API 路由 |
+| `5432` | PostgreSQL | 数据库（pgvector 扩展） |
+| `8089` | Expo Metro | Native bundle 服务 + Expo Web |
+| `4040` | ngrok inspector | tunnel 调试面板 |
 
-### 容器环境与配置持久化
-- Dev Container 基础镜像为 Alpine；已在 [/.devcontainer/Dockerfile](.devcontainer/Dockerfile) 预装 `gcompat` 与 `libstdc++` 以提升对 glibc 链接二进制的兼容性。
-- 如遇到 Expo 未输出二维码/链接，请检查外部环境是否设置了 `CI` 等会导致非交互模式的环境变量。
-- 若你修改了 devcontainer 配置，请在 VS Code 中执行一次容器重建：
-   ```bash
-   # 命令面板
-   Dev Containers: Rebuild Container
-   ```
+---
 
-### SDK 55 版本矩阵（已对齐）
-- Expo SDK: ~55.0.5
-- React: 19.2.x
-- React Native: 0.83.x
-- Expo Router: ~55.0.4
-- Expo Image Picker: ~55.0.11
+## 项目结构
 
-> 说明：Web 同步使用 React 19.2；`packages/ui` 对应的 peer/dev 依赖已对齐 SDK 55，避免多版本冲突。
->
-> **注意**：Expo SDK 55 起，`expo-router` 等包的版本号与 SDK 大版本统一为 `55.x`（不再是 `6.x`）。若版本号落后会导致 Metro bundling 报错（如缺少 `unmatched.png` 资源），请通过 `npx expo install --fix` 自动修正。
+```
+Cosoul.AI/
+├── apps/
+│   ├── web/                    # Next.js 16 Web应用 + API路由
+│   │   └── app/
+│   │       ├── api/            # 后端API（任务、握手、LLM、Embedding）
+│   │       ├── feed/           # 瀑布流页
+│   │       ├── publish/        # 发布需求页
+│   │       ├── messages/       # 消息交互页
+│   │       ├── cards/          # 发现页
+│   │       └── profile/        # 个人主页
+│   └── native/                 # Expo 55 移动端应用
+├── packages/
+│   ├── ui/                     # 跨平台UI组件库
+│   │   └── src/screens/        # 共享Screen组件
+│   └── task-agent/             # Agent核心包
+│       └── src/
+│           ├── fsm/            # 状态机 + Schema
+│           ├── dispatcher/     # L0/L1/L2 匹配漏斗
+│           ├── llm/            # 多厂商LLM适配
+│           ├── rag/            # Embedding + 向量检索
+│           ├── protocol/       # 握手协议 + 幂等
+│           ├── storage/        # PostgreSQL + task.md 持久化
+│           ├── memory/         # 记忆压缩 + 上下文管理
+│           ├── intake/         # 多轮对话需求收集
+│           └── skills/         # Skill路由（预留）
+├── .data/                      # Agent本地数据（task.md等）
+├── .devcontainer/              # 云开发环境配置
+├── docs/                       # 项目文档
+└── drizzle.config.ts           # 数据库迁移配置
+```
+
+---
+
+## 开发须知
+
+- **SDK 55 版本矩阵**：Expo ~55.0.5 / React 19.2.x / React Native 0.83.x / Expo Router ~55.0.4
+- **禁止在真机上手动 Reload**：经 ngrok 隧道传输 JS bundle 耗时 3 分钟以上，修改代码后直接保存即可，HMR 毫秒级响应
+- 若遇到 Metro bundling 报错，清除缓存重启：`npm run dev:mobile:clear`
+- 数据库迁移：修改 `schema.db.ts` 后运行 `npx drizzle-kit generate && npx drizzle-kit migrate`
