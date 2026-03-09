@@ -45,6 +45,6 @@
 
   "features": {},
 
-  // 转发开发服务端口：7878=Next.js Web，9191=Expo Metro/Native，4040=ngrok inspector
-  "forwardPorts": [7878, 9191, 4040]
+  // 转发开发服务端口：3030=Next.js Web，8089=Expo Metro/Native，4040=ngrok inspector
+  "forwardPorts": [3030, 8089, 4040]
 }

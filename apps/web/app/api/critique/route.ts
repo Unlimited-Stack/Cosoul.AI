@@ -45,7 +45,7 @@ const PERSONA_PROMPTS: Record<string, string> = {
 语气要求：专业、温和、有教学感。像一位耐心的老师在指导学生。用中文回答。`,
 };
 
-// CORS 响应头——允许 Expo Web（localhost:9191）等跨域来源访问
+// CORS 响应头——允许 Expo Web（localhost:8089）等跨域来源访问
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",

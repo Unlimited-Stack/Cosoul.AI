@@ -7,8 +7,8 @@ import { useCallback } from "react";
 import * as ImagePicker from "expo-image-picker";
 import { AiCoreScreen } from "@repo/ui";
 
-// API 代理地址——开发时指向本地 Next.js 服务（端口 7878），部署时需改为实际域名
-const API_BASE_URL = "http://localhost:7878/api/critique";
+// API 代理地址——开发时指向本地 Next.js 服务（端口 3030），部署时需改为实际域名
+const API_BASE_URL = "http://localhost:3030/api/critique";
 
 export default function AiCoreTab() {
   /**

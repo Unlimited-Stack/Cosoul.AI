@@ -37,8 +37,8 @@
 
 | 服务 | 端口 | 启动命令 |
 |------|------|----------|
-| **Web**（Next.js） | `7878` | `npm run dev:web` |
-| **Native**（Expo Metro） | `9191` | `npm run dev:native` |
+| **Web**（Next.js） | `3030` | `npm run dev:web` |
+| **Native**（Expo Metro） | `8089` | `npm run dev:native` |
 | **ngrok Inspector** | `4040` | Expo tunnel 自动启用 |
 
 > **重要**：Native 使用 `--tunnel` 模式通过 ngrok 暴露 Metro，手机扫码即可连接。
@@ -146,10 +146,10 @@ npm install
 npm run dev
 
 # 仅启动 Web
-npm run dev:web          # → http://localhost:7878
+npm run dev:web          # → http://localhost:3030
 
 # 仅启动 Native
-npm run dev:native       # → Expo Metro @ :9191 (tunnel 模式)
+npm run dev:native       # → Expo Metro @ :8089 (tunnel 模式)
 
 # Native 缓存异常时清除重启
 npm run dev:mobile:clear
@@ -222,7 +222,7 @@ interface AiCoreScreenProps {
 <AiCoreScreen onPickImage={webPickImage} apiBaseUrl="/api/critique" />
 
 // Native 端注入 expo-image-picker
-<AiCoreScreen onPickImage={nativePickImage} apiBaseUrl="http://localhost:7878/api/critique" />
+<AiCoreScreen onPickImage={nativePickImage} apiBaseUrl="http://localhost:3030/api/critique" />
 ```
 
 同理，`ProfileScreen` 的 `onOpenSettings` 和 `showHeader`，`SettingsScreen` 的 `onGoBack` 均采用此模式。
@@ -500,6 +500,6 @@ Stack (_layout.tsx, ThemeProvider 包裹)
 - **基础镜像**：Node.js 环境
 - **持久卷**：Claude Code 认证数据 + VS Code Server 缓存（容器 rebuild 不丢失）
 - **代理**：自动配置 HTTP/HTTPS 代理指向宿主机 `host.docker.internal:7897`
-- **端口转发**：7878 (Web)、9191 (Metro)、4040 (ngrok)
+- **端口转发**：3030 (Web)、8089 (Metro)、4040 (ngrok)
 - **预装插件**：ESLint、Prettier、Expo Tools、Claude Code、GitHub Copilot
 - **安全**：`seccomp: unconfined` + `SYS_ADMIN`（Metro/Docker 需要）

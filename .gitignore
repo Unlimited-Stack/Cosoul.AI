@@ -1,7 +1,42 @@
 node_modules
 
-# MacOS 文件系统生成的隐藏文件，不需要提交
+# ── 系统文件 ──────────────────────────────────────────────────────
+# macOS 文件系统生成的隐藏文件
 .DS_Store
+Thumbs.db
 
-# Claude Code 本地数据（命名 volume，不提交）
+# ── 构建产物与缓存 ───────────────────────────────────────────────
+# Turborepo 本地缓存（每台机器不同，不提交）
+.turbo/
+
+# Next.js 构建缓存
+.next/
+
+# Expo 本地配置与缓存（设备列表、端口等因人而异）
+.expo/
+apps/native/.expo-shared/
+
+# UI 包编译产物（CI/CD 或本地 build 生成，不提交源码仓库）
+packages/ui/dist/
+
+# 通用构建输出目录
+dist/
+out/
+build/
+
+# ── 日志文件 ──────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# ── 编辑器与工具缓存 ─────────────────────────────────────────────
+.eslintcache
+*.tsbuildinfo
+
+# ── 环境变量（含敏感信息，绝不提交） ─────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── Claude Code 本地数据（命名 volume，不提交） ──────────────────
 .devcontainer/claude-home/

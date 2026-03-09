@@ -39,13 +39,22 @@
    ```
    - 安装根目录、apps、packages 中所有工作区的依赖
 
-3. **启动开发服务（Monorepo）**
+3. **对齐 Expo 原生包版本（重要！）**
+   ```bash
+   cd apps/native && npx expo install --fix && cd ../..
+   ```
+   - 本项目是 npm workspaces monorepo，`npm install` 会将 `expo-router` 等包提升（hoist）到根 `node_modules`
+   - 提升后部分 Expo 原生包的资源文件路径可能错位（如 `expo-router/assets/unmatched.png` 找不到）
+   - `npx expo install --fix` 会自动将 `expo`、`expo-router`、`expo-image-picker` 等包更新到与当前 SDK 兼容的版本，修复此问题
+   - **每次执行 `npm install` 或删除 `node_modules` 重装后都需要再跑一次此命令**
+
+4. **启动开发服务（Monorepo）**
    ```bash
    npm run dev
    ```
    此命令并行启动全部三个任务：
-   - **Web (Next.js)**: http://localhost:7878
-   - **Native Metro (Expo Tunnel)**: 终端输出二维码，用 Expo Go 扫码；同时 http://localhost:9191 可在浏览器预览 React Native 的 Web 渲染版本
+   - **Web (Next.js)**: http://localhost:3030
+   - **Native Metro (Expo Tunnel)**: 终端输出二维码，用 Expo Go 扫码；同时 http://localhost:8089 可在浏览器预览 React Native 的 Web 渲染版本
    - **UI Package (tsup watch)**: 自动编译共享组件
 
 ### 预览方式
@@ -54,22 +63,23 @@
 
 | 入口 | 说明 |
 |------|------|
-| http://localhost:7878 | Next.js Web 业务页面 |
-| http://localhost:9191 | React Native 的浏览器渲染版（Expo Web） |
+| http://localhost:3030 | Next.js Web 业务页面 |
+| http://localhost:8089 | React Native 的浏览器渲染版（Expo Web） |
 | Expo Go 扫码 | 真机预览（iOS / Android） |
 
 - **⚠️ 禁止在真机上手动 Reload**：按 Reload 会重新下载完整 JS bundle（约 5~15MB），须经 ngrok 隧道（手机 → ngrok 云 → Codespaces → Metro）传输，实测单次耗时 **3 分钟以上**（ngrok inspector 记录：`/entry.bundle 200 OK 181s / 202s`）。**修改代码后直接保存即可**，HMR 热更新为增量推送，手机端毫秒级响应，无需 Reload。
-- 若遇到缓存或路由异常，改用：
+- 若遇到缓存、路由异常或 Metro bundling 报错（如 `Unable to resolve` 类错误），清除缓存重启：
   ```bash
   npm run dev:mobile:clear
   ```
+  该命令等同于 `expo start --clear`，会清除 Metro 的模块解析缓存。
 
 ### 端口与入口说明
 
 | 端口 | 进程 | 说明 |
 |------|------|------|
-| `7878` | Next.js | Web 业务入口 |
-| `9191` | Expo Metro | Native bundle 服务 + Expo Web 入口 |
+| `3030` | Next.js | Web 业务入口 |
+| `8089` | Expo Metro | Native bundle 服务 + Expo Web 入口 |
 | `4040` | ngrok inspector | 显示所有经过 tunnel 的 HTTP 请求，可在 http://127.0.0.1:4040 打开。主要请求：`/entry.bundle`（JS bundle 下载）、`/message`（WebSocket，用于 HMR 热更新推送）、`/status`（Metro 状态轮询）。用于调试 tunnel 连通性和请求耗时。 |
 
 ### 容器环境与配置持久化
@@ -82,9 +92,12 @@
    ```
 
 ### SDK 55 版本矩阵（已对齐）
-- Expo SDK: ~55.0.0
+- Expo SDK: ~55.0.5
 - React: 19.2.x
 - React Native: 0.83.x
-- Expo Router: ~6.0.23
+- Expo Router: ~55.0.4
+- Expo Image Picker: ~55.0.11
 
 > 说明：Web 同步使用 React 19.2；`packages/ui` 对应的 peer/dev 依赖已对齐 SDK 55，避免多版本冲突。
+>
+> **注意**：Expo SDK 55 起，`expo-router` 等包的版本号与 SDK 大版本统一为 `55.x`（不再是 `6.x`）。若版本号落后会导致 Metro bundling 报错（如缺少 `unmatched.png` 资源），请通过 `npx expo install --fix` 自动修正。
