@@ -6,11 +6,12 @@ export default defineConfig({
     "src/db/schema.ts",
     "src/db/client.ts",
     "src/llm/index.ts",
+    "src/llm/server.ts",
   ],
   format: ["cjs", "esm"],
   dts: true,
   splitting: false,
   sourcemap: true,
   clean: true,
-  external: ["pg"],
+  external: ["pg", "https-proxy-agent"],
 });

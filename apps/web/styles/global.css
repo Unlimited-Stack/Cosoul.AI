@@ -262,6 +262,15 @@ html, body {
 }
 .sidebar-footer-item:hover { opacity: 0.75; }
 .sidebar-footer-item:active { opacity: 0.55; }
+/* button 元素重置默认样式，与 Link 保持一致 */
+button.sidebar-footer-item {
+  background: none;
+  border: none;
+  outline: none;
+  font: inherit;
+  width: 100%;
+  text-align: left;
+}
 
 /* 头像圆形容器——与 .sidebar-icon 同为 24px 保持水平对齐 */
 .sidebar-avatar {

@@ -12,6 +12,7 @@
   "dependencies": {
     "@expo/metro-runtime": "~55.0.6",
     "@expo/ngrok": "^4.1.0",
+    "@repo/core": "*",
     "@repo/ui": "*",
     "dotenv": "^17.3.1",
     "expo": "~55.0.5",

@@ -1,5 +1,9 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "node:path";
 import type { ExpoConfig, ConfigContext } from "expo/config";
+
+// 从 monorepo 根目录加载 .env（Turborepo 从 apps/native/ 启动，默认找不到根 .env）
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -48,5 +52,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     codingPlanBaseUrl:
       process.env.CODING_PLAN_BASE_URL ?? "https://coding.dashscope.aliyuncs.com/v1",
     codingPlanApiKey: process.env.CODING_PLAN_API_KEY ?? "",
+    webBffUrl: process.env.WEB_BFF_URL ?? "http://localhost:3030/api",
   },
 });

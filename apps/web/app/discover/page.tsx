@@ -1,5 +1,7 @@
+"use client";
+
 import { CardsScreen } from "@repo/ui";
 
-export default function CardsTab() {
+export default function DiscoverPage() {
   return <CardsScreen />;
 }

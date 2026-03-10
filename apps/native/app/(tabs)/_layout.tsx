@@ -7,20 +7,20 @@
  * 顺序：首页、发现、Agent、消息、我的
  */
 import { Tabs } from "expo-router";
-import { LiquidTabBar } from "@repo/ui";
+import { LiquidTabBar, type LiquidTabBarProps } from "@repo/ui";
 
 export default function TabLayout() {
   return (
     <Tabs
-      tabBar={(props) => <LiquidTabBar {...props} />}
+      tabBar={(props) => <LiquidTabBar {...(props as unknown as LiquidTabBarProps)} />}
       screenOptions={{
         headerShown: false,
       }}
     >
-      <Tabs.Screen name="feed" options={{ title: "首页" }} />
-      <Tabs.Screen name="cards" options={{ title: "发现" }} />
-      <Tabs.Screen name="ai-core" options={{ title: "Agent" }} />
-      <Tabs.Screen name="index" options={{ title: "消息" }} />
+      <Tabs.Screen name="home" options={{ title: "首页" }} />
+      <Tabs.Screen name="discover" options={{ title: "发现" }} />
+      <Tabs.Screen name="agent" options={{ title: "Agent" }} />
+      <Tabs.Screen name="messages" options={{ title: "消息" }} />
       <Tabs.Screen name="profile" options={{ title: "我的" }} />
     </Tabs>
   );

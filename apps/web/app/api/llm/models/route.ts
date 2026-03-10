@@ -4,12 +4,7 @@
  */
 import { NextResponse } from "next/server";
 import { MODELS } from "@repo/core/llm";
-import { withCors, corsOptions } from "../cors";
 
 export async function GET() {
-  return withCors(NextResponse.json({ models: MODELS }));
-}
-
-export async function OPTIONS() {
-  return corsOptions();
+  return NextResponse.json({ models: MODELS });
 }

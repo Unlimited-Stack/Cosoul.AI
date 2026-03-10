@@ -3,6 +3,19 @@ require("dotenv").config({ path: require("path").resolve(__dirname, "../../.env"
 
 module.exports = {
   reactStrictMode: true,
+  // CORS — 允许 Expo Web (8089) 开发时跨域访问 BFF API (3030)
+  async headers() {
+    return [
+      {
+        source: "/api/:path*",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Access-Control-Allow-Methods", value: "GET, POST, OPTIONS" },
+          { key: "Access-Control-Allow-Headers", value: "Content-Type" },
+        ],
+      },
+    ];
+  },
   // Turbopack config (Next.js 16+ default bundler)
   turbopack: {
     resolveAlias: {

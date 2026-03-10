@@ -1,15 +1,14 @@
 /**
  * ProfileScreen.tsx — 「我的」页面
- * 展示用户头像和个人信息。主题切换已迁移到 SettingsScreen。
+ * 展示用户头像和个人信息。
  *
- * Native 端：左上角头像、右上角齿轮（点击进入设置）
+ * Native 端顶部栏：头像（左）| 主题切换（右二）| 齿轮（右一）
  * Web 端：纯内容展示（导航由 Sidebar 处理）
- *
- * onOpenSettings 回调：由平台层注入，用于导航到设置页。
  */
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useTheme } from "../theme/ThemeContext";
 import { SettingsIcon, PersonIcon } from "../components/TabIcons";
+import { ThemeToggleButton } from "../components/ThemeToggleButton";
 
 export interface ProfileScreenProps {
   /** 点击齿轮时的回调——由平台层注入路由跳转 */
@@ -23,17 +22,20 @@ export function ProfileScreen({ onOpenSettings, showHeader = true }: ProfileScre
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
-      {/* 顶部栏：头像（左） + 齿轮（右） */}
+      {/* 顶部栏：头像（左） + 主题切换 + 齿轮（右） */}
       {showHeader && (
         <View style={styles.topBar}>
           <View style={[styles.avatarCircle, { backgroundColor: colors.switcherBg }]}>
             <PersonIcon size={28} color={colors.subtitle} />
           </View>
-          {onOpenSettings && (
-            <TouchableOpacity onPress={onOpenSettings} style={styles.gearBtn} activeOpacity={0.6}>
-              <SettingsIcon size={24} color={colors.subtitle} />
-            </TouchableOpacity>
-          )}
+          <View style={styles.rightActions}>
+            <ThemeToggleButton size={22} />
+            {onOpenSettings && (
+              <TouchableOpacity onPress={onOpenSettings} style={styles.gearBtn} activeOpacity={0.6}>
+                <SettingsIcon size={24} color={colors.subtitle} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       )}
 
@@ -64,6 +66,11 @@ const styles = StyleSheet.create({
   avatarCircle: {
     width: 40, height: 40, borderRadius: 20,
     alignItems: "center", justifyContent: "center",
+  },
+  rightActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   gearBtn: { padding: 8 },
   body: { flex: 1, alignItems: "center", justifyContent: "center" },

@@ -5,9 +5,11 @@ export { ThemeProvider, useTheme, type ThemeMode, type ThemeColors } from "./the
 export { Button, type ButtonProps } from "./button";
 export { TabIcon, type TabIconProps } from "./components/TabIcon";
 export { LiquidTabBar, type LiquidTabBarProps } from "./components/LiquidTabBar";
+export { ThemeToggleButton } from "./components/ThemeToggleButton";
 export {
   MessageIcon, CommunityIcon, PlusCircleIcon, CompassIcon, PersonIcon,
   SettingsIcon, ChevronLeftIcon, PaletteIcon, SidebarToggleIcon,
+  SunIcon, MoonIcon,
 } from "./components/TabIcons";
 
 // Screens

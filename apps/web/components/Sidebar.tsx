@@ -11,20 +11,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
   MessageIcon, CommunityIcon, PlusCircleIcon, CompassIcon, PersonIcon,
-  SettingsIcon, PaletteIcon, SidebarToggleIcon,
+  SettingsIcon, PaletteIcon, SidebarToggleIcon, SunIcon, MoonIcon,
+  useTheme,
 } from "@repo/ui";
 
 /* ================================================================
  * 导航项配置——"我的"已移至底部头像区，主导航仅保留 4 项
  * ================================================================ */
 const NAV_ITEMS = [
-  { href: "/feed",     Icon: CommunityIcon,  label: "首页" },
-  { href: "/cards",    Icon: CompassIcon,    label: "发现" },
+  { href: "/home",     Icon: CommunityIcon,  label: "首页" },
+  { href: "/discover", Icon: CompassIcon,    label: "发现" },
   { href: "/messages", Icon: MessageIcon,    label: "消息" },
-  { href: "/ai-core",  Icon: PlusCircleIcon, label: "Agent" },
+  { href: "/agent",    Icon: PlusCircleIcon, label: "Agent" },
 ];
 
 // 每个导航项的高度 + 间距，用于计算药丸 translateY
@@ -42,6 +43,9 @@ interface SidebarProps {
 export function Sidebar({ isDark }: SidebarProps) {
   const [expanded, setExpanded] = useState(false);
   const pathname = usePathname();
+  const { setMode } = useTheme();
+
+  const toggleTheme = () => setMode(isDark ? "light" : "dark");
 
   // 当前激活项索引（-1 表示不在主导航中，如 /profile、/settings）
   const activeIndex = useMemo(() => {
@@ -54,6 +58,19 @@ export function Sidebar({ isDark }: SidebarProps) {
   // 药丸 Y 偏移；-1 时隐藏
   const pillY = activeIndex >= 0 ? activeIndex * PILL_STEP : 0;
   const pillVisible = activeIndex >= 0;
+
+  // 跟踪上一次 activeIndex，从底部项（-1）切回主导航时禁用 transition，防止药丸从首页位置滑入
+  const prevActiveIndex = useRef(activeIndex);
+  const [pillTransition, setPillTransition] = useState(true);
+  useEffect(() => {
+    if (prevActiveIndex.current === -1 && activeIndex >= 0) {
+      // 从底部项切到主导航：先禁用动画让药丸原地出现
+      setPillTransition(false);
+      // 下一帧恢复动画，后续 tab 间切换恢复弹性滑动
+      requestAnimationFrame(() => setPillTransition(true));
+    }
+    prevActiveIndex.current = activeIndex;
+  }, [activeIndex]);
 
   // 图标颜色——根据主题和激活状态决定
   const activeColor = isDark ? "#FF375F" : "#FF2D55";
@@ -95,13 +112,14 @@ export function Sidebar({ isDark }: SidebarProps) {
           style={{
             transform: `translateY(${pillY}px)`,
             opacity: pillVisible ? 1 : 0,
+            ...(pillTransition ? {} : { transition: "none" }),
           }}
         />
 
         {NAV_ITEMS.map((item) => {
           const isActive =
             pathname.startsWith(item.href) ||
-            (pathname === "/" && item.href === "/feed");  // 根路径高亮首页
+            (pathname === "/" && item.href === "/home");  // 根路径高亮首页
 
           return (
             <Link
@@ -118,7 +136,7 @@ export function Sidebar({ isDark }: SidebarProps) {
         })}
       </nav>
 
-      {/* 底部区域：头像（→ 我的）+ 设置齿轮 */}
+      {/* 底部区域：头像（→ 我的）+ 主题切换 + 设置齿轮 */}
       <div className="sidebar-footer">
         <Link
           href="/profile"
@@ -130,6 +148,20 @@ export function Sidebar({ isDark }: SidebarProps) {
           </span>
           <span className="sidebar-label">我的</span>
         </Link>
+        {/* 主题切换：深色时显示月亮，浅色时显示太阳，点击切换 */}
+        <button
+          className="sidebar-footer-item"
+          onClick={toggleTheme}
+          title={isDark ? "切换为浅色模式" : "切换为深色模式"}
+        >
+          <span className="sidebar-icon">
+            {isDark
+              ? <MoonIcon size={20} color={inactiveColor} />
+              : <SunIcon  size={20} color={inactiveColor} />
+            }
+          </span>
+          <span className="sidebar-label">{isDark ? "深色" : "浅色"}</span>
+        </button>
         <Link
           href="/settings"
           className={`sidebar-footer-item${pathname.startsWith("/settings") ? " active" : ""}`}

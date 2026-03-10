@@ -1,7 +1,5 @@
-"use client";
-
 import { FeedScreen } from "@repo/ui";
 
-export default function FeedPage() {
+export default function HomeTab() {
   return <FeedScreen />;
 }

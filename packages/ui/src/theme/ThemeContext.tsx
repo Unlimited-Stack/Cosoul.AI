@@ -1,14 +1,14 @@
 /**
  * ThemeContext.tsx
  * 全局主题系统：定义浅色/深色颜色方案，提供 ThemeProvider 和 useTheme hook。
- * 支持三种模式：跟随系统（system）、强制浅色（light）、强制深色（dark）。
+ * 支持两种模式：强制浅色（light）、强制深色（dark）。
+ * 默认深色模式。
  */
 
 import React, { createContext, useContext, useState, useMemo } from "react";
-import { useColorScheme } from "react-native";
 
-// 主题模式枚举：跟随系统 / 浅色 / 深色
-export type ThemeMode = "system" | "light" | "dark";
+// 主题模式：仅浅色 / 深色，不再跟随系统
+export type ThemeMode = "light" | "dark";
 
 // 全局颜色 token 接口——所有组件通过这套 token 取色，不直接写死颜色值
 export interface ThemeColors {
@@ -51,37 +51,27 @@ interface ThemeContextValue {
   mode: ThemeMode;
   setMode: (m: ThemeMode) => void;
   colors: ThemeColors;
-  isDark: boolean; // 最终是否处于深色状态（已综合 system 判断结果）
+  isDark: boolean;
 }
 
 // 默认值：未被 Provider 包裹时的兜底（实际不应发生）
 const ThemeContext = createContext<ThemeContextValue>({
-  mode: "system",
+  mode: "dark",
   setMode: () => {},
-  colors: LIGHT,
-  isDark: false,
+  colors: DARK,
+  isDark: true,
 });
 
 /**
  * ThemeProvider
  * 包裹整个应用根节点，向子树注入主题状态。
- * 在 apps/native/app/_layout.tsx 的最外层使用。
+ * 默认深色模式。
  */
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // 读取设备系统级深浅色偏好
-  const systemScheme = useColorScheme();
-  // 用户手动选择的模式，默认跟随系统
-  const [mode, setMode] = useState<ThemeMode>("system");
+  // 默认深色模式
+  const [mode, setMode] = useState<ThemeMode>("dark");
 
-  // 根据 mode 计算最终深色状态：
-  // dark → 强制深色；light → 强制浅色；system → 跟随 useColorScheme
-  const isDark = useMemo(() => {
-    if (mode === "dark") return true;
-    if (mode === "light") return false;
-    return systemScheme === "dark";
-  }, [mode, systemScheme]);
-
-  // 根据 isDark 选择对应颜色方案
+  const isDark = useMemo(() => mode === "dark", [mode]);
   const colors = isDark ? DARK : LIGHT;
 
   return (

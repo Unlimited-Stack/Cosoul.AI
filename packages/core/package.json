@@ -25,6 +25,11 @@
       "import": "./dist/llm/index.mjs",
       "require": "./dist/llm/index.js",
       "types": "./dist/llm/index.d.ts"
+    },
+    "./llm-server": {
+      "import": "./dist/llm/server.mjs",
+      "require": "./dist/llm/server.js",
+      "types": "./dist/llm/server.d.ts"
     }
   },
   "scripts": {
@@ -41,7 +46,8 @@
     "pgvector": "^0.2.0",
     "zod": "^3.24.2",
     "dotenv": "^16.4.7",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "https-proxy-agent": "^7.0.0"
   },
   "devDependencies": {
     "@repo/typescript-config": "*",

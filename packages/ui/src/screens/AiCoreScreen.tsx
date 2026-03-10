@@ -151,6 +151,52 @@ export function AiCoreScreen({ llmService }: AiCoreScreenProps) {
         </Text>
       </View>
 
+      {/* 顶部状态栏 — 嵌在标题和列表之间，不遮挡内容 */}
+      {switchStatus !== "idle" && (
+        <Animated.View
+          style={[
+            styles.statusBar,
+            { backgroundColor: statusBarBg, opacity: statusOpacity },
+          ]}
+        >
+          {switchStatus === "loading" && (
+            <View style={styles.statusRow}>
+              <ActivityIndicator
+                size="small"
+                color={colors.subtitle}
+                style={styles.statusSpinner}
+              />
+              <Text style={[styles.statusText, { color: statusTextColor }]}>
+                {statusMessage}
+              </Text>
+            </View>
+          )}
+          {switchStatus === "success" && (
+            <View style={styles.statusRow}>
+              <Text style={[styles.statusText, { color: statusTextColor }]}>
+                {statusMessage}
+              </Text>
+              <Text style={[styles.statusModelName, { color: statusTextColor }]}>
+                {activeModelName}
+              </Text>
+            </View>
+          )}
+          {switchStatus === "error" && (
+            <View style={styles.statusCol}>
+              <Text style={[styles.statusText, { color: statusTextColor }]}>
+                切换失败
+              </Text>
+              <Text
+                style={[styles.statusErrorDetail, { color: statusTextColor }]}
+                numberOfLines={3}
+              >
+                {statusMessage}
+              </Text>
+            </View>
+          )}
+        </Animated.View>
+      )}
+
       {/* 模型列表 */}
       <ScrollView
         style={styles.scrollArea}
@@ -247,52 +293,6 @@ export function AiCoreScreen({ llmService }: AiCoreScreenProps) {
           </View>
         )}
       </ScrollView>
-
-      {/* 底部常驻状态栏 */}
-      {switchStatus !== "idle" && (
-        <Animated.View
-          style={[
-            styles.statusBar,
-            { backgroundColor: statusBarBg, opacity: statusOpacity },
-          ]}
-        >
-          {switchStatus === "loading" && (
-            <View style={styles.statusRow}>
-              <ActivityIndicator
-                size="small"
-                color={colors.subtitle}
-                style={styles.statusSpinner}
-              />
-              <Text style={[styles.statusText, { color: statusTextColor }]}>
-                {statusMessage}
-              </Text>
-            </View>
-          )}
-          {switchStatus === "success" && (
-            <View style={styles.statusCol}>
-              <Text style={[styles.statusText, { color: statusTextColor }]}>
-                {statusMessage}
-              </Text>
-              <Text style={[styles.statusModelName, { color: statusTextColor }]}>
-                {activeModelName}
-              </Text>
-            </View>
-          )}
-          {switchStatus === "error" && (
-            <View style={styles.statusCol}>
-              <Text style={[styles.statusText, { color: statusTextColor }]}>
-                切换失败
-              </Text>
-              <Text
-                style={[styles.statusErrorDetail, { color: statusTextColor }]}
-                numberOfLines={2}
-              >
-                {statusMessage}
-              </Text>
-            </View>
-          )}
-        </Animated.View>
-      )}
     </View>
   );
 }
@@ -392,42 +392,36 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
   },
-  // 底部常驻状态栏
+  // 顶部内联状态栏（标题下方，不遮挡内容）
   statusBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    paddingBottom: 34, // safe area
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    marginHorizontal: 16,
+    marginBottom: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
   },
   statusRow: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
   },
   statusSpinner: {
-    marginRight: 10,
+    marginRight: 6,
   },
   statusCol: {
-    alignItems: "center",
+    gap: 2,
   },
   statusText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "500",
-    textAlign: "center",
   },
   statusModelName: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: "700",
-    marginTop: 4,
-    textAlign: "center",
   },
   statusErrorDetail: {
     fontSize: 12,
-    marginTop: 4,
-    textAlign: "center",
+    opacity: 0.85,
   },
 });

@@ -1,8 +1,10 @@
 /**
- * ai-core.tsx
+ * agent.tsx
  * Native 端「Agent」Tab 页面
  *
- * 直连 Coding Plan API，无需经过 Next.js 3030 代理。
+ * - 真机 / 模拟器：直连 Coding Plan API（无 CORS 限制）
+ * - Expo Web（浏览器）：走 Next.js BFF 代理（浏览器有 CORS 限制）
+ *
  * API 配置从 Expo app.config 的 extra 字段读取。
  */
 import { useMemo } from "react";
@@ -11,19 +13,17 @@ import { AiCoreScreen } from "@repo/ui";
 import { createDirectLlmService, createProxyLlmService } from "@repo/core/llm";
 import { Platform } from "react-native";
 
-/** 从 Expo extra config 读取 LLM 配置 */
 const extra = Constants.expoConfig?.extra ?? {};
 const CODING_PLAN_BASE_URL =
   extra.codingPlanBaseUrl ?? "https://coding.dashscope.aliyuncs.com/v1";
 const CODING_PLAN_API_KEY = extra.codingPlanApiKey ?? "";
+const WEB_BFF_URL = extra.webBffUrl ?? "http://localhost:3030/api";
 
-export default function AiCoreTab() {
+export default function AgentTab() {
   const llmService = useMemo(() => {
-    // Expo Web 走相对路径代理（同源，无 CORS 问题）
     if (Platform.OS === "web") {
-      return createProxyLlmService("/api");
+      return createProxyLlmService(WEB_BFF_URL);
     }
-    // 真机 / 模拟器：直连 Coding Plan API
     return createDirectLlmService({
       baseUrl: CODING_PLAN_BASE_URL,
       apiKey: CODING_PLAN_API_KEY,

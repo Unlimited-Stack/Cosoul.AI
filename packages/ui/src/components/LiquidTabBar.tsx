@@ -13,7 +13,7 @@
  *   - onLayout 完成后才显示药丸，避免首帧位置错误
  */
 
-import { useRef, useState, useCallback, type ComponentType } from "react";
+import { useRef, useState, useCallback, useEffect, type ComponentType } from "react";
 import {
   View,
   Text,
@@ -55,11 +55,11 @@ export interface LiquidTabBarProps {
 // 各 tab 的静态配置：路由名称、SVG 图标组件、显示文字
 // 顺序须与 (tabs)/_layout.tsx 中 Tabs.Screen 的声明顺序一致
 const TABS: { name: string; Icon: ComponentType<{ size?: number; color?: string }>; label: string }[] = [
-  { name: "feed",     Icon: CommunityIcon,   label: "首页" },
-  { name: "cards",    Icon: CompassIcon,     label: "发现" },
-  { name: "ai-core",  Icon: PlusCircleIcon,  label: "Agent" },
-  { name: "index",    Icon: MessageIcon,     label: "消息" },
-  { name: "profile",  Icon: PersonIcon,      label: "我的" },
+  { name: "home",      Icon: CommunityIcon,   label: "首页" },
+  { name: "discover",  Icon: CompassIcon,     label: "发现" },
+  { name: "agent",     Icon: PlusCircleIcon,  label: "Agent" },
+  { name: "messages",  Icon: MessageIcon,     label: "消息" },
+  { name: "profile",   Icon: PersonIcon,      label: "我的" },
 ];
 
 // ── 尺寸常量 ────────────────────────────────────────────────────────────
@@ -85,6 +85,9 @@ export function LiquidTabBar({ state, navigation }: LiquidTabBarProps) {
   // 药丸 X 轴位置的动画值（translateX），不使用 state 避免触发 re-render
   const pillX = useRef(new Animated.Value(0)).current;
 
+  // 记录最近一次通过 tab bar 点击目标的下标（-1 表示无），用于区分"点击跳转"和"外部导航"
+  const lastPressedIndex = useRef(-1);
+
   // 容器布局完成回调：计算 tabWidth 并将药丸定位到初始激活项（无动画）
   const handleLayout = useCallback(
     (e: LayoutChangeEvent) => {
@@ -98,7 +101,7 @@ export function LiquidTabBar({ state, navigation }: LiquidTabBarProps) {
     [state.index, state.routes.length, pillX]
   );
 
-  // Tab 点击回调：触发路由跳转 + 启动药丸弹簧动画
+  // Tab 点击回调：触发路由跳转 + 启动药丸弹簧动画，并标记本次为主动点击
   const handleTabPress = useCallback(
     (routeName: string, routeKey: string, index: number) => {
       const isFocused = state.index === index;
@@ -112,6 +115,7 @@ export function LiquidTabBar({ state, navigation }: LiquidTabBarProps) {
 
       // 未被拦截且非当前页时才执行跳转
       if (!isFocused && !event.defaultPrevented) {
+        lastPressedIndex.current = index; // 标记：此次状态变化来自 tab 点击
         navigation.navigate(routeName);
       }
 
@@ -128,6 +132,19 @@ export function LiquidTabBar({ state, navigation }: LiquidTabBarProps) {
     },
     [state.index, navigation, pillX, tabWidth]
   );
+
+  // 处理外部导航（非 tab bar 点击）引起的 state.index 变化：
+  // 此时 handleTabPress 未被调用，pillX 停留在旧位置，需瞬间跳位到正确 tab
+  useEffect(() => {
+    if (!pillVisible || tabWidth <= 0) return;
+    if (lastPressedIndex.current === state.index) {
+      // tab 点击触发的变化，动画已由 handleTabPress 处理，仅重置标记
+      lastPressedIndex.current = -1;
+    } else {
+      // 外部导航：直接跳位，不产生划入动效
+      pillX.setValue(state.index * tabWidth + PILL_HORIZONTAL_PADDING);
+    }
+  }, [state.index, tabWidth, pillVisible, pillX]);
 
   // 药丸宽度略小于单格宽度，形成左右内缩的"药丸"视觉
   const pillWidth = tabWidth > 0 ? tabWidth - PILL_HORIZONTAL_PADDING * 2 : 0;

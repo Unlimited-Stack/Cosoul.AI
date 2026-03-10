@@ -1,5 +1,5 @@
 import { MessageScreen } from "@repo/ui";
 
-export default function MessageTab() {
+export default function MessagesTab() {
   return <MessageScreen />;
 }
