@@ -32,9 +32,10 @@
 | **react-native-svg** | ^15.15.3 | 跨平台 SVG 图标 |
 | **TypeScript** | 5.5.4 (web/ui) / ~5.9.2 (native) | 类型系统 |
 | **tsup** | ^8.0.1 | 共享 UI 包构建工具 |
-| **PostgreSQL** | 16 | 数据库（+ pgvector 扩展） |
-| **Drizzle ORM** | latest | 类型安全 ORM（SQL-first） |
-| **pgvector** | latest | PostgreSQL 向量索引扩展 |
+| **PostgreSQL** | 18 | 数据库（+ pgvector 扩展） |
+| **Drizzle ORM** | ^0.39.3 | 类型安全 ORM（SQL-first） |
+| **pgvector** | 0.8.x (扩展) / ^0.2.0 (npm) | PostgreSQL 向量索引扩展（Docker 镜像 `pgvector/pgvector:pg18` 内置） |
+| **DashScope Embedding** | text-embedding-v4 | 向量化引擎，输出 vector(1024) |
 
 ---
 
@@ -222,7 +223,12 @@ DEFAULT_LLM_MODEL=qwen3-max
 ### 5.3 初始化数据库
 
 ```bash
-npx drizzle-kit migrate
+# 一步到位：迁移建表（含启用 pgvector + HNSW 索引）+ 灌入测试数据
+npm run db:reset
+
+# 或分步执行：
+npx drizzle-kit migrate    # 仅建表
+npm run db:seed             # 仅灌数据
 ```
 
 ### 5.4 启动开发服务器
@@ -481,7 +487,28 @@ Failed       → [Searching]      // 重试
 | OpenAIProvider | GPT-4o, GPT-4o-mini | 备选 |
 | ClaudeProvider | Claude 系列 | 备选 |
 
-### 8.5 数据存储
+### 8.5 pgvector 与三层漏斗匹配
+
+pgvector 是 L1 语义检索的核心引擎，与 L0 硬过滤在同一 PostgreSQL 实例中协同工作：
+
+```
+L0 硬过滤 (SQL WHERE)  ── 结构化字段查询（城市、类型、年龄等），快速淘汰明显不匹配项
+         ↓ 候选池
+L1 语义检索 (pgvector) ── HNSW 索引 + 余弦距离 (<=>) 算子
+                          三字段加权：activity 0.35 + vibe 0.35 + description 0.30
+         ↓ Top-K 最匹配
+L2 沙盒谈判            ── Agent ↔ Agent 握手协商（CoT 推理）
+```
+
+**关键设计决策**：向量数据与业务数据同库（而非独立向量数据库如 Pinecone/Milvus），使 L0 SQL 过滤 + L1 向量检索可在一条查询中完成，无跨库调用开销。
+
+**相关表与配置**：
+- `task_vectors` 表：存储 DashScope `text-embedding-v4` 生成的 `vector(1024)` 向量
+- HNSW 索引：`idx_task_vectors_embedding_hnsw`（`vector_cosine_ops`）
+- Drizzle 自定义类型：`schema.ts` 中通过 `customType` 桥接 pgvector 的 `vector` 类型
+- npm 包 `pgvector ^0.2.0`（`@repo/core` 依赖）
+
+### 8.6 数据存储
 
 - **task.md**（YAML头 + Markdown正文）= 唯一真相源
 - **PostgreSQL** = 派生层（可从 task.md 重建）
@@ -546,7 +573,9 @@ Failed       → [Searching]      // 重试
 | Native HMR 失效 | Metro 缓存异常 | `npm run dev:mobile:clear` |
 | 手机端加载慢 | ngrok tunnel 首次全量下载 | 等待首次加载完成，后续为增量 HMR |
 | PostgreSQL 连接失败 | Docker 服务未启动 | `docker compose up -d` 或检查 `DATABASE_URL` |
-| pgvector 扩展未找到 | 未安装 pgvector | 确保使用 `pgvector/pgvector:pg16` 镜像 |
+| pgvector 扩展未找到 | 未安装 pgvector | 确保 `docker-compose.yml` 使用 `pgvector/pgvector:pg18` 镜像，并执行 `npm run db:reset` |
+| Rebuild 后数据库为空 | Docker Volume 被清除或未初始化 | 执行 `npm run db:reset`（自动启用 pgvector + 建表 + 灌数据） |
+| `task_vectors` 表为空 | 正常 — 需调用 Embedding API | 向量数据在用户发布需求并经 DashScope 向量化后才写入 |
 
 ### 9.6 代码风格
 
@@ -600,10 +629,34 @@ Failed       → [Searching]      // 重试
 
 ## 11. DevContainer 配置摘要
 
-- **基础镜像**：Node.js 环境
-- **附加服务**：PostgreSQL 16 + pgvector（Docker Compose）
-- **持久卷**：Claude Code 认证数据 + VS Code Server 缓存（容器 rebuild 不丢失）
-- **代理**：自动配置 HTTP/HTTPS 代理指向宿主机
+- **基础镜像**：`mcr.microsoft.com/devcontainers/javascript-node:20`
+- **附加服务**：PostgreSQL 18 + pgvector（Docker Compose，镜像 `pgvector/pgvector:pg18`）
+- **持久卷**（Rebuild 不丢失）：
+  - `pgdata` — PostgreSQL 数据
+  - `claude-code-data` — Claude Code 认证 + 聊天历史
+  - `vscode-server` — VS Code 扩展缓存
+- **代理**：自动配置 HTTP/HTTPS 代理指向宿主机（`host.docker.internal:7897`）
 - **端口转发**：3030 (Web)、5432 (PostgreSQL)、8089 (Metro)、4040 (ngrok)
-- **预装插件**：ESLint、Prettier、Expo Tools、Claude Code、GitHub Copilot
+- **预装插件**：ESLint、Prettier、Expo Tools、Claude Code、GitHub Copilot、Database Client
 - **安全**：`seccomp: unconfined` + `SYS_ADMIN`（Metro/Docker 需要）
+- **数据库连接**：`postgresql://cosoul:cosoul@db:5432/cosoul_agent`（通过环境变量 `DATABASE_URL` 自动注入）
+
+### pgvector 三重持久化保障
+
+| 层级 | 位置 | 说明 |
+|------|------|------|
+| Docker 镜像层 | `docker-compose.yml` → `pgvector/pgvector:pg18` | 官方镜像内置 pgvector 二进制 |
+| 迁移 SQL 层 | `drizzle/0000_melted_inertia.sql` 第 1 行 | `CREATE EXTENSION IF NOT EXISTS vector` |
+| 应用代码层 | `packages/core/src/db/client.ts` → `initDatabase()` | 应用启动时兜底创建扩展 |
+
+Rebuild 后只需 `npm run db:reset` 即可自动恢复全部数据库能力（pgvector 扩展 + 11 张表 + HNSW 索引 + 测试数据）。
+
+### Rebuild 后完整恢复步骤
+
+```bash
+npm install                                          # 1. 恢复依赖
+cd apps/native && npx expo install --fix && cd ../.. # 2. 对齐 Expo 原生包
+npm run db:reset                                     # 3. 初始化数据库
+cp .env.example .env                                 # 4. 恢复环境变量（如丢失）
+npm run dev                                          # 5. 启动开发
+```

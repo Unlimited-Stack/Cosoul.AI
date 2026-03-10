@@ -1,0 +1,54 @@
+{
+  "name": "@repo/core",
+  "version": "0.0.1",
+  "private": true,
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./db/schema": {
+      "import": "./dist/db/schema.mjs",
+      "require": "./dist/db/schema.js",
+      "types": "./dist/db/schema.d.ts"
+    },
+    "./db/client": {
+      "import": "./dist/db/client.mjs",
+      "require": "./dist/db/client.js",
+      "types": "./dist/db/client.d.ts"
+    },
+    "./llm": {
+      "import": "./dist/llm/index.mjs",
+      "require": "./dist/llm/index.js",
+      "types": "./dist/llm/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "clean": "rm -rf dist",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "pg": "^8.13.1",
+    "drizzle-orm": "^0.39.3",
+    "pgvector": "^0.2.0",
+    "zod": "^3.24.2",
+    "dotenv": "^16.4.7",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "*",
+    "@types/pg": "^8.11.11",
+    "@types/uuid": "^10.0.0",
+    "drizzle-kit": "^0.30.5",
+    "tsup": "^8.0.1",
+    "typescript": "~5.5.4"
+  }
+}

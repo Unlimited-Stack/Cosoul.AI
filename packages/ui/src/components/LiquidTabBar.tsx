@@ -57,7 +57,7 @@ export interface LiquidTabBarProps {
 const TABS: { name: string; Icon: ComponentType<{ size?: number; color?: string }>; label: string }[] = [
   { name: "feed",     Icon: CommunityIcon,   label: "首页" },
   { name: "cards",    Icon: CompassIcon,     label: "发现" },
-  { name: "ai-core",  Icon: PlusCircleIcon,  label: "锐评" },
+  { name: "ai-core",  Icon: PlusCircleIcon,  label: "Agent" },
   { name: "index",    Icon: MessageIcon,     label: "消息" },
   { name: "profile",  Icon: PersonIcon,      label: "我的" },
 ];

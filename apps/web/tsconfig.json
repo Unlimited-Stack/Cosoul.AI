@@ -6,6 +6,7 @@
         "name": "next"
       }
     ],
+    "moduleResolution": "bundler",
     "strictNullChecks": true
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

@@ -42,9 +42,9 @@ export function ProfileScreen({ onOpenSettings, showHeader = true }: ProfileScre
         <View style={[styles.avatarLarge, { backgroundColor: colors.switcherBg }]}>
           <PersonIcon size={56} color={colors.subtitle} />
         </View>
-        <Text style={[styles.title, { color: colors.text }]}>我的主页</Text>
+        <Text style={[styles.title, { color: colors.text }]}>我的</Text>
         <Text style={[styles.subtitle, { color: colors.subtitle }]}>
-          个人设置与历史锐评记录
+          个人资料与偏好设置
         </Text>
       </View>
     </View>

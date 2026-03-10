@@ -4,10 +4,10 @@
  *   1. 将默认底部栏替换为自定义的 LiquidTabBar（液态玻璃风格）
  *   2. 声明五个 Tab 页面及其标题和图标配置
  *
- * 顺序：首页、发现、锐评、消息、我的
+ * 顺序：首页、发现、Agent、消息、我的
  */
 import { Tabs } from "expo-router";
-import { TabIcon, LiquidTabBar } from "@repo/ui";
+import { LiquidTabBar } from "@repo/ui";
 
 export default function TabLayout() {
   return (
@@ -17,51 +17,11 @@ export default function TabLayout() {
         headerShown: false,
       }}
     >
-      <Tabs.Screen
-        name="feed"
-        options={{
-          title: "首页",
-          tabBarIcon: ({ color }) => (
-            <TabIcon label="🌊" color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="cards"
-        options={{
-          title: "发现",
-          tabBarIcon: ({ color }) => (
-            <TabIcon label="🃏" color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="ai-core"
-        options={{
-          title: "锐评",
-          tabBarIcon: ({ color }) => (
-            <TabIcon label="✨" color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "消息",
-          tabBarIcon: ({ color }) => (
-            <TabIcon label="💬" color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: "我的",
-          tabBarIcon: ({ color }) => (
-            <TabIcon label="👤" color={color} />
-          ),
-        }}
-      />
+      <Tabs.Screen name="feed" options={{ title: "首页" }} />
+      <Tabs.Screen name="cards" options={{ title: "发现" }} />
+      <Tabs.Screen name="ai-core" options={{ title: "Agent" }} />
+      <Tabs.Screen name="index" options={{ title: "消息" }} />
+      <Tabs.Screen name="profile" options={{ title: "我的" }} />
     </Tabs>
   );
 }

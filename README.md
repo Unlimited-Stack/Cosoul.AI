@@ -80,7 +80,7 @@
   - `packages/core`: 共享业务逻辑+数据层（@repo/core），含 DB、Services、Storage、Types
   - `packages/agent`: Agent 智能体总包（@repo/agent），含 shared（LLM/RAG/Memory）+ task-agent + persona-agent + social-agent
 - **数据层**:
-  - PostgreSQL 16 + pgvector：用户、分身、任务、联系人、向量索引、握手记录
+  - PostgreSQL 18 + pgvector：用户、分身、任务、联系人、向量索引、握手记录
   - `.data/<persona_id>/` 文件层：per-persona 的 User.md、task.md（单一真相源）、对话记录
   - 双层映射：文件层 = 真相源，PostgreSQL = 可重建的派生层
 - **AI 层**:
@@ -96,13 +96,14 @@
 ### 前置需求
 - GitHub Codespaces 或本地 Docker + Dev Container
 - （本地）VS Code + Dev Container Extension
-- PostgreSQL 16 + pgvector 扩展（Dev Container 已内置）
+- PostgreSQL 18 + pgvector 扩展（**Dev Container 已内置，无需手动安装**）
 
 ### 初次启动流程
 
 1. **打开 Dev Container**（Codespaces 自动，或本地需执行 `Dev Containers: Reopen in Container`）
    - Dockerfile 会自动安装 Node.js、npm、Expo CLI、Git LFS 等工具
-   - Docker Compose 会启动 PostgreSQL + pgvector 服务
+   - **Docker Compose 自动启动 PostgreSQL + pgvector 服务**（无需手动操作）
+   - `app` 容器通过 `depends_on` + `healthcheck` 确保 DB 就绪后才启动
 
 2. **安装依赖**
    ```bash
@@ -120,9 +121,9 @@
    ```bash
    cp .env.example .env
    ```
-   填入必要的 API Key：
+   填入必要的 API Key（`DATABASE_URL` 已在 Docker Compose 中自动注入，无需修改）：
    ```env
-   DATABASE_URL=postgresql://user:pass@localhost:5432/cosoul_agent
+   DATABASE_URL=postgresql://cosoul:cosoul@db:5432/cosoul_agent  # 已自动注入
    DASHSCOPE_API_KEY=xxx          # 阿里千问/Embedding（必填）
    OPENAI_API_KEY=xxx             # OpenAI（可选）
    ANTHROPIC_API_KEY=xxx          # Claude（可选）
@@ -130,10 +131,13 @@
    DEFAULT_LLM_MODEL=qwen3-max
    ```
 
-5. **初始化数据库**
+5. **初始化数据库（建表 + 灌测试数据）**
    ```bash
-   npx drizzle-kit migrate
+   npm run db:reset
    ```
+   这条命令会依次执行：
+   - `drizzle-kit migrate` — 创建 11 张核心表 + pgvector HNSW 索引
+   - `seed.ts` — 灌入测试数据（3 用户、7 分身、10 任务、聊天记录等）
 
 6. **启动开发服务**
    ```bash
@@ -160,6 +164,179 @@
 | `5432` | PostgreSQL | 数据库（pgvector 扩展） |
 | `8089` | Expo Metro | Native bundle 服务 + Expo Web |
 | `4040` | ngrok inspector | tunnel 调试面板 |
+
+---
+
+## 数据库（PostgreSQL + pgvector）
+
+### 自动启动机制
+
+PostgreSQL 作为 Docker Compose 的一个服务，**随 Dev Container 自动启动**，无需手动操作：
+
+```
+docker-compose.yml
+├── app（开发容器）── depends_on: db（等 DB 就绪后才启动）
+└── db（PostgreSQL 18 + pgvector）── healthcheck 每 5s 检测
+```
+
+- **Rebuild Container** 或**打开 Codespace** 时，PostgreSQL 自动启动
+- 数据持久化在 Docker Volume `pgdata` 中，Rebuild 不丢失
+- 容器内通过 `db:5432` 访问（`DATABASE_URL` 已在 docker-compose.yml 中自动注入）
+
+### pgvector 扩展持久化保障
+
+pgvector 通过 **三重机制** 确保 Rebuild 后自动恢复，无需手动安装：
+
+| 层级 | 文件 | 机制 |
+|------|------|------|
+| **Docker 镜像** | `docker-compose.yml` → `pgvector/pgvector:pg18` | 官方镜像自带 pgvector 二进制，容器启动即可用 |
+| **迁移 SQL** | `drizzle/0000_melted_inertia.sql` 第 1 行 | `CREATE EXTENSION IF NOT EXISTS vector;` — 建表前自动启用 |
+| **应用层** | `packages/core/src/db/client.ts` → `initDatabase()` | 应用启动时兜底执行 `CREATE EXTENSION IF NOT EXISTS vector` |
+
+> **Rebuild 后恢复流程**：只需执行 `npm run db:reset`，即可自动完成：启用 pgvector 扩展 → 创建 11 张表 + HNSW 向量索引 → 灌入测试数据。
+
+### pgvector 在 TaskAgent 中的作用
+
+pgvector 是 L1 语义检索阶段的核心引擎，与 L0 硬过滤协同组成前两层匹配漏斗：
+
+```
+L0 硬过滤 (SQL WHERE)  ── PostgreSQL 结构化字段（城市、类型等）快速淘汰不匹配项
+         ↓ 候选池
+L1 语义检索 (pgvector) ── HNSW 索引 + 余弦距离，三字段加权检索：
+                          activity 0.35 + vibe 0.35 + description 0.30
+         ↓ Top-K
+L2 沙盒谈判            ── Agent ↔ Agent 握手协商
+```
+
+- **向量模型**：DashScope `text-embedding-v4`，输出 `vector(1024)` 维度
+- **索引类型**：HNSW（`vector_cosine_ops`），支持高效近似最近邻搜索
+- **存储表**：`task_vectors`（字段：activity / vibe / raw / summary）
+- **优势**：向量与业务数据同库，L0 SQL 过滤 + L1 向量检索可在一条查询中完成
+
+### 数据库命令
+
+| 命令 | 说明 |
+|------|------|
+| `npm run db:migrate` | 执行数据库迁移（建表/更新表结构） |
+| `npm run db:generate` | 从 schema.ts 生成新的迁移 SQL |
+| `npm run db:seed` | 灌入测试数据（先清空再插入，可重复执行） |
+| `npm run db:reset` | 迁移 + 灌数据（一步到位，新成员入职首选） |
+| `npm run db:studio` | 启动 Drizzle Studio Web 界面浏览数据 |
+
+### 典型工作流
+
+**新成员首次加入：**
+```bash
+# 1. 打开 Dev Container（PostgreSQL 自动启动）
+# 2. 安装依赖
+npm install
+# 3. 建表 + 灌测试数据（一条命令搞定）
+npm run db:reset
+```
+
+**修改表结构：**
+```bash
+# 1. 编辑 packages/core/src/db/schema.ts
+# 2. 生成迁移 SQL
+npm run db:generate
+# 3. 执行迁移
+npm run db:migrate
+```
+
+**重置测试数据：**
+```bash
+npm run db:seed    # 清空旧数据 + 重新插入，可随时反复执行
+```
+
+### Rebuild 后完整恢复清单
+
+Rebuild Dev Container 后，按顺序执行以下步骤即可完整恢复开发环境：
+
+```bash
+# 1. 安装依赖（Rebuild 后 node_modules 会丢失）
+npm install
+
+# 2. 对齐 Expo 原生包版本（monorepo hoist 修正）
+cd apps/native && npx expo install --fix && cd ../..
+
+# 3. 初始化数据库（自动启用 pgvector + 建表 + 灌测试数据）
+npm run db:reset
+
+# 4. 配置环境变量（如果 .env 丢失）
+cp .env.example .env
+# 编辑 .env 填入 API Key
+
+# 5. 启动开发服务
+npm run dev
+```
+
+> **自动恢复的内容**（Rebuild 不丢失）：
+> - Docker Volume `pgdata`（PostgreSQL 数据，除非手动删除 volume）
+> - Docker Volume `claude-code-data`（Claude Code 认证）
+> - Docker Volume `vscode-server`（VS Code 扩展缓存）
+> - Git 仓库代码和配置
+
+> **需要手动恢复的内容**：
+> - `node_modules`（`npm install`）
+> - 数据库表结构和数据（如果 volume 被清除，`npm run db:reset`）
+> - `.env` 文件中的 API Key
+
+### 数据库浏览器
+
+项目已预装 VS Code 插件 **Database Client**（`cweijan.vscode-database-client2`），Rebuild 后自动安装。
+
+首次连接配置（仅需一次）：
+
+| 字段 | 值 |
+|------|-----|
+| 服务类型 | PostgreSQL |
+| 主机名 | `db` |
+| 端口 | `5432` |
+| 用户名 | `cosoul` |
+| 密码 | `cosoul` |
+| 数据库 | `cosoul_agent` |
+
+连接后在左侧 `cosoul_agent → public → Tables` 下可像 Excel 一样浏览和编辑所有表数据。
+
+### Seed 测试数据说明
+
+`packages/core/src/db/seed.ts` 提供贴合业务场景的测试数据：
+
+| 数据 | 数量 | 说明 |
+|------|------|------|
+| 用户 | 3 | Alice、Bob、Carol |
+| AI 分身 | 7 | 社交达人、技术宅、健身搭子、商务精英、美食探店、旅行达人、音乐爱好者 |
+| 偏好档案 | 7 | 每个分身对应完整的 User.md 结构化数据 |
+| 任务 | 10 | 覆盖全部 9 种 FSM 状态（Drafting/Searching/Negotiating/Waiting_Human/Closed/Listening/Revising/Timeout/Failed） |
+| 任务摘要 | 5 | 可跨任务复用的标签摘要 |
+| 联系人 | 5 | 含 accepted/pending 状态 + AI 好友备注 |
+| 握手日志 | 4 | PROPOSE → COUNTER_PROPOSE → ACCEPT 完整流程 |
+| 聊天消息 | 14 | 覆盖四种交互模式（人-人、Agent-Agent、Agent-人、人-Agent）+ Intake 多轮对话 |
+| 幂等记录 | 2 | 防重复握手 |
+| 记忆摘要 | 4 | 对话压缩 + RAG 回溯 |
+
+### 团队数据同步策略
+
+- **Git 追踪的是表结构**（schema.ts + 迁移 SQL + seed.ts），不是数据本身
+- 团队成员 clone 后执行 `npm run db:reset` 即可得到相同的表结构 + 测试数据
+- 数据变更 → 更新 seed.ts → push → 其他人 pull 后重新 `npm run db:seed`
+- 联调阶段可切换 `.env` 中 `DATABASE_URL` 指向共享云数据库（Supabase/Neon）
+
+### 数据库文件位置
+
+```
+packages/core/src/db/
+├── schema.ts     # Drizzle ORM 表定义（11 张表 + 索引）
+├── client.ts     # 连接池 + initDatabase()（启用 pgvector）
+└── seed.ts       # 测试数据种子脚本
+
+drizzle/
+├── 0000_melted_inertia.sql  # 自动生成的迁移 SQL（含 pgvector + HNSW 索引）
+└── meta/                     # Drizzle 迁移元数据
+
+drizzle.config.ts             # 迁移配置（指向 packages/core/src/db/schema.ts）
+.env.example                  # 环境变量模板（含 DATABASE_URL）
+```
 
 ---
 
@@ -228,6 +405,6 @@ idempotency_keys — 幂等控制（TTL 7天）
 - **SDK 55 版本矩阵**：Expo ~55.0.5 / React 19.2.x / React Native 0.83.x / Expo Router ~55.0.4
 - **禁止在真机上手动 Reload**：经 ngrok 隧道传输 JS bundle 耗时 3 分钟以上，修改代码后直接保存即可，HMR 毫秒级响应
 - 若遇到 Metro bundling 报错，清除缓存重启：`npm run dev:mobile:clear`
-- 数据库迁移：修改 `packages/core/src/db/schema.ts` 后运行 `npx drizzle-kit generate && npx drizzle-kit migrate`
-
-旁分支Test
+- **数据库迁移**：修改 `packages/core/src/db/schema.ts` 后运行 `npm run db:generate && npm run db:migrate`
+- **数据库重置**：`npm run db:seed` 可随时清空并重灌测试数据
+- **PostgreSQL 连接失败**：确认 Dev Container 已启动（PostgreSQL 随容器自动运行），或检查 `DATABASE_URL` 环境变量

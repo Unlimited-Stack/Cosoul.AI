@@ -13,6 +13,7 @@
     "@expo/metro-runtime": "~55.0.6",
     "@expo/ngrok": "^4.1.0",
     "@repo/ui": "*",
+    "dotenv": "^17.3.1",
     "expo": "~55.0.5",
     "expo-blur": "~55.0.8",
     "expo-constants": "~55.0.7",

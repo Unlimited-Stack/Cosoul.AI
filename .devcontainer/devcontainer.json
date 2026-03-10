@@ -1,10 +1,10 @@
 {
-  "name": "AI Photo Reviewer Dev Env",
+  "name": "Cosoul.AI Dev Env",
   "dockerComposeFile": "docker-compose.yml",
   "service": "app",
   "workspaceFolder": "/workspaces",
-  
-  // 👇 新增：将 VS Code 设置持久化到容器中
+
+  // 将 VS Code 设置持久化到容器中
   "customizations": {
     "vscode": {
       "settings": {
@@ -20,7 +20,8 @@
         "yzhang.markdown-all-in-one",
         "GitHub.copilot-chat",
         "anthropic.claude-code",
-        "openai.chatgpt"
+        "openai.chatgpt",
+        "cweijan.vscode-database-client2"        
       ]
     }
   },
@@ -32,19 +33,20 @@
     // 小写 —— Node.js 生态 (node-fetch, undici, axios …) 常读小写
     "http_proxy": "http://host.docker.internal:7897",
     "https_proxy": "http://host.docker.internal:7897",
-    "NO_PROXY": "localhost,127.0.0.1",
-    "no_proxy": "localhost,127.0.0.1",
+    "NO_PROXY": "localhost,127.0.0.1,db",
+    "no_proxy": "localhost,127.0.0.1,db",
     // 代理环境下避免自签证书 / 中间人证书导致 TLS 握手失败
-    "NODE_TLS_REJECT_UNAUTHORIZED": "0"
+    "NODE_TLS_REJECT_UNAUTHORIZED": "0",
+    "DATABASE_URL": "postgresql://cosoul:cosoul@db:5432/cosoul_agent"
   },
 
   "remoteUser": "node",
-
+  
   // 使用单行 shell 命令，确保由 /bin/sh 解析并顺序执行，并修复 .claude 目录权限 + git 配置
   "postCreateCommand": "git config --global user.name 'Unlimited-Stack' && git config --global user.email 'Engineer@code.chat' && git config --global --add safe.directory /workspaces && (git lfs install --system || true) && (git lfs install --local --force || true)",
 
   "features": {},
 
-  // 转发开发服务端口：3030=Next.js Web，8089=Expo Metro/Native，4040=ngrok inspector
-  "forwardPorts": [3030, 8089, 4040]
+  // 转发端口：3030=Next.js Web, 5432=PostgreSQL, 8089=Expo Metro, 4040=ngrok
+  "forwardPorts": [3030, 5432, 8089, 4040]
 }

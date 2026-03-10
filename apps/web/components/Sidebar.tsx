@@ -24,7 +24,7 @@ const NAV_ITEMS = [
   { href: "/feed",     Icon: CommunityIcon,  label: "首页" },
   { href: "/cards",    Icon: CompassIcon,    label: "发现" },
   { href: "/messages", Icon: MessageIcon,    label: "消息" },
-  { href: "/ai-core",  Icon: PlusCircleIcon, label: "锐评" },
+  { href: "/ai-core",  Icon: PlusCircleIcon, label: "Agent" },
 ];
 
 // 每个导航项的高度 + 间距，用于计算药丸 translateY

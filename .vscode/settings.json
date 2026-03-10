@@ -1,4 +1,17 @@
 {
     "github.copilot.chat.updated53CodexPrompt.enabled": true,
-    "inlineChat.defaultModel": "GPT-5 (openai)"
+    "inlineChat.defaultModel": "GPT-5 (openai)",
+
+    "database-client.connections": [
+        {
+            "name": "Cosoul Dev (PostgreSQL)",
+            "host": "db",
+            "port": 5432,
+            "user": "cosoul",
+            "password": "cosoul",
+            "database": "cosoul_agent",
+            "dbType": "PostgreSQL",
+            "global": false
+        }
+    ]
 }

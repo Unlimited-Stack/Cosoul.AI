@@ -1,3 +1,6 @@
+// 加载 monorepo 根目录的 .env 文件（Next.js 默认只读 apps/web/.env）
+require("dotenv").config({ path: require("path").resolve(__dirname, "../../.env") });
+
 module.exports = {
   reactStrictMode: true,
   // Turbopack config (Next.js 16+ default bundler)

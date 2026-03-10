@@ -181,7 +181,7 @@ Phase 3 (A) ──┘         │        │       │
 
 ### 任务清单
 - [ ] 配置 PostgreSQL 开发环境：
-  - 在 `.devcontainer/docker-compose.yml` 中添加 PostgreSQL 16 + pgvector 服务
+  - 在 `.devcontainer/docker-compose.yml` 中添加 PostgreSQL 18 + pgvector 服务
   - 配置 `DATABASE_URL` 环境变量
   - 编写 `drizzle.config.ts` 迁移配置
 - [ ] 实现 `packages/core/src/db/client.ts`（数据库连接与初始化）：

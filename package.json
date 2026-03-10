@@ -7,16 +7,22 @@
     "dev:mobile:clear": "turbo run dev:clear --filter=native",
     "build": "turbo run build",
     "clean": "turbo run clean && rm -rf node_modules",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\" --ignore-path .gitignore"
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\" --ignore-path .gitignore",
+    "db:generate": "npx drizzle-kit generate",
+    "db:migrate": "npx drizzle-kit migrate",
+    "db:studio": "npx drizzle-kit studio",
+    "db:seed": "npx tsx packages/core/src/db/seed.ts",
+    "db:reset": "npx drizzle-kit migrate && npx tsx packages/core/src/db/seed.ts"
   },
   "devDependencies": {
-    "babel-plugin-transform-inline-environment-variables": "^0.4.4",
-    "concurrently": "^8.2.2",
+    "@types/minimatch": "^6.0.0",
     "@types/node": "^20.11.0",
     "@types/react": "~19.1.10",
     "@types/react-dom": "~19.1.5",
-    "@types/minimatch": "^6.0.0",
+    "babel-plugin-transform-inline-environment-variables": "^0.4.4",
+    "concurrently": "^8.2.2",
     "prettier": "^3.1.1",
+    "tsx": "^4.21.0",
     "turbo": "^2.8.11"
   },
   "engines": {

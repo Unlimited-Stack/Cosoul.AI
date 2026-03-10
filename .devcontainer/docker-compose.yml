@@ -15,20 +15,44 @@ services:
       - HTTPS_PROXY=http://host.docker.internal:7897
       - http_proxy=http://host.docker.internal:7897
       - https_proxy=http://host.docker.internal:7897
-      - NO_PROXY=localhost,127.0.0.1
-      - no_proxy=localhost,127.0.0.1
+      - NO_PROXY=localhost,127.0.0.1,db
+      - no_proxy=localhost,127.0.0.1,db
       - NODE_TLS_REJECT_UNAUTHORIZED=0
+      # PostgreSQL 连接串（容器内通过服务名 db 访问）
+      - DATABASE_URL=postgresql://cosoul:cosoul@db:5432/cosoul_agent
     # 允许容器访问宿主机网络上的代理
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
     command: sleep infinity
     security_opt:
       - seccomp:unconfined
     cap_add:
       - SYS_ADMIN
 
+  db:
+    image: pgvector/pgvector:pg18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cosoul
+      POSTGRES_PASSWORD: cosoul
+      POSTGRES_DB: cosoul_agent
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cosoul -d cosoul_agent"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
 volumes:
   claude-code-data:
     # Claude Code 认证 + 配置，rebuild 不丢失
   vscode-server:
     # VS Code 扩展缓存，rebuild 后秒开
+  pgdata:
+    # PostgreSQL 数据持久化，rebuild 不丢失
