@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc --noEmit)",
+      "Bash(ls \"/workspaces/TaskAgent\\(待合并\\)/node_modules/openai\")",
+      "Bash(npm install:*)",
+      "Bash(wc -l \"/workspaces/TaskAgent\\(待合并\\)/src/task_agent/util/storage.ts\")",
+      "Bash(ls \"/workspaces/TaskAgent\\(待合并\\)/node_modules/@repo/core/dist/db/\")"
+    ]
+  }
+}

@@ -13,7 +13,16 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/profile)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/messages)",
       "Bash(ls /workspaces/node_modules/react-native-safe-area-context/lib/module/*.web.*)",
-      "Bash(ls /workspaces/node_modules/react-native-safe-area-context/lib/module/index*)"
+      "Bash(ls /workspaces/node_modules/react-native-safe-area-context/lib/module/index*)",
+      "Bash(npx vitest:*)",
+      "Bash(npm run:*)",
+      "Bash(cat \"/workspaces/TaskAgent\\(待合并\\)/.env\")",
+      "Bash(DASHSCOPE_API_KEY=sk-82fb267068fd42e1b53b29b84eeb6858 npm run test -- --reporter=verbose tests/llm_integration.spec.ts)",
+      "Bash(ls /workspaces/TaskAgent\\\\\\(待合并\\\\\\)/node_modules/drizzle-orm/package.json)",
+      "Bash(node -e \"console.log\\(require\\(''/workspaces/TaskAgent\\(待合并\\)/node_modules/drizzle-orm/package.json''\\).version\\)\")",
+      "Bash(node -e \"console.log\\(require\\(''/workspaces/node_modules/drizzle-orm/package.json''\\).version\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\(''''packages'''',{}\\).get\\('''''''',''''''''\\).get\\(''''workspaces'''',''''not found''''\\)\\)\")",
+      "Bash(ls \"/workspaces/TaskAgent\\(待合并\\)/node_modules/drizzle-orm\")"
     ],
     "additionalDirectories": [
       "/workspaces/packages/ui/src"

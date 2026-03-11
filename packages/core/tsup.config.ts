@@ -13,5 +13,5 @@ export default defineConfig({
   splitting: false,
   sourcemap: true,
   clean: true,
-  external: ["pg", "https-proxy-agent"],
+  external: ["pg", "https-proxy-agent", "openai"],
 });

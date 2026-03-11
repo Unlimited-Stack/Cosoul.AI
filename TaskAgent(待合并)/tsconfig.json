@@ -11,7 +11,14 @@
     "resolveJsonModule": true,
     "outDir": "dist",
     "rootDir": "src",
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {
+      "@repo/core": ["../node_modules/@repo/core/dist/index.d.ts"],
+      "@repo/core/llm": ["../node_modules/@repo/core/dist/llm/index.d.ts"],
+      "@repo/core/llm-server": ["../node_modules/@repo/core/dist/llm/server.d.ts"],
+      "@repo/core/db/client": ["../node_modules/@repo/core/dist/db/client.d.ts"],
+      "@repo/core/db/schema": ["../node_modules/@repo/core/dist/db/schema.d.ts"]
+    }
   },
   "include": ["src/**/*.ts"],
   "exclude": ["dist", "node_modules"]
