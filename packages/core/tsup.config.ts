@@ -7,6 +7,8 @@ export default defineConfig({
     "src/db/client.ts",
     "src/llm/index.ts",
     "src/llm/server.ts",
+    "src/persona/proxy.ts",
+    "src/persona/service.ts",
   ],
   format: ["cjs", "esm"],
   dts: true,

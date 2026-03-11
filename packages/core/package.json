@@ -30,6 +30,16 @@
       "import": "./dist/llm/server.mjs",
       "require": "./dist/llm/server.js",
       "types": "./dist/llm/server.d.ts"
+    },
+    "./persona": {
+      "import": "./dist/persona/proxy.mjs",
+      "require": "./dist/persona/proxy.js",
+      "types": "./dist/persona/proxy.d.ts"
+    },
+    "./persona-server": {
+      "import": "./dist/persona/service.mjs",
+      "require": "./dist/persona/service.js",
+      "types": "./dist/persona/service.d.ts"
     }
   },
   "scripts": {

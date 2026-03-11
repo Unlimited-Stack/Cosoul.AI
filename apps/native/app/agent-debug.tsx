@@ -1,6 +1,6 @@
 /**
  * agent-debug.tsx
- * Native 端 Agent 调试页 — Coding Plan 模型连接测试
+ * Native 端 Agent 调试页 — 模型连接测试 + PersonaAgent 数据监控
  *
  * 从 Agent 主页右上角扳手图标进入，以 modal 方式呈现。
  * 点击左上角返回按钮可关闭。
@@ -33,5 +33,19 @@ export default function AgentDebugPage() {
 
   const handleGoBack = useCallback(() => router.back(), [router]);
 
-  return <AgentDebugScreen llmService={llmService} onGoBack={handleGoBack} />;
+  /** 获取调试用分身完整数据（Expo Web 走 BFF，真机需改地址） */
+  const fetchDebugPersonas = useCallback(async () => {
+    const baseUrl = Platform.OS === "web" ? WEB_BFF_URL : WEB_BFF_URL;
+    const res = await fetch(`${baseUrl}/debug/personas`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }, []);
+
+  return (
+    <AgentDebugScreen
+      llmService={llmService}
+      onGoBack={handleGoBack}
+      fetchDebugPersonas={fetchDebugPersonas}
+    />
+  );
 }

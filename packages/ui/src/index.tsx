@@ -15,8 +15,16 @@ export {
 // Screens
 export { MessageScreen } from "./screens/MessageScreen";
 export { FeedScreen } from "./screens/FeedScreen";
-export { AiCoreScreen, AgentDebugScreen, type AiCoreScreenProps, type AgentDebugScreenProps, type LlmServiceLike } from "./screens/AiCoreScreen";
-export { AgentScreen, type AgentScreenProps } from "./screens/AgentScreen";
+export { AiCoreScreen, AgentDebugScreen, type AiCoreScreenProps, type AgentDebugScreenProps, type LlmServiceLike, type DebugPersonaInfo } from "./screens/AiCoreScreen";
+export {
+  AgentScreen,
+  type AgentScreenProps,
+  type PersonaService,
+  type Persona,
+  type AgentTask,
+  type CreatePersonaInput,
+  type CreateTaskInput,
+} from "./screens/AgentScreen";
 export { CardsScreen } from "./screens/CardsScreen";
 export { ProfileScreen, type ProfileScreenProps } from "./screens/ProfileScreen";
 export { SettingsScreen, type SettingsScreenProps } from "./screens/SettingsScreen";
