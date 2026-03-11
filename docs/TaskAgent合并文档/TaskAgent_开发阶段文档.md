@@ -15,6 +15,191 @@
 
 ---
 
+## 各角色具体修改范围
+
+### 工程师A（后端/基础设施）— 负责 Phase 1, 3, 7, 10, 11
+
+#### 需要新建的文件/目录
+
+```
+packages/core/src/services/           ← 🔴 核心工作量（Service 层）
+├── persona.service.ts                — 分身 CRUD + User.md 同步
+├── task.service.ts                   — 任务 CRUD + 乐观锁 + 两阶段写 + L0 查询
+├── contact.service.ts                — 联系人管理
+└── chat.service.ts                   — 聊天消息存取
+
+packages/core/src/storage/            ← 🔴 文件存储防腐层
+├── task-md.ts                        — task.md YAML头+Markdown正文 序列化/反序列化
+└── file-store.ts                     — .data/<persona_id>/ 目录读写工具
+
+apps/web/app/api/                     ← 🔴 BFF 薄壳路由（仅转发，不写业务逻辑）
+├── persona/route.ts                  — POST/GET 分身管理
+├── persona/[id]/route.ts             — GET/PATCH 分身详情
+├── task/route.ts                     — POST/GET 任务管理
+├── task/[id]/route.ts                — GET/PATCH 任务详情
+├── task/[id]/run/route.ts            — POST FSM 单步执行
+├── task/[id]/intent/route.ts         — POST 用户意图处理
+├── task/[id]/pause/route.ts          — POST 挂起任务（Phase 11）
+├── task/[id]/resume/route.ts         — POST 恢复任务（Phase 11）
+├── handshake/route.ts                — POST 握手协议入站
+├── contact/route.ts                  — POST/GET 联系人
+├── contact/[id]/route.ts             — PATCH 接受/拒绝好友
+├── embedding/route.ts                — POST 文本向量化
+└── llm/chat/route.ts                 — POST LLM 对话（SSE 流式）
+```
+
+#### 已完成 / 仅需微调的文件
+
+```
+packages/core/src/db/schema.ts        ← ✅ 11 张表已定义
+packages/core/src/db/client.ts        ← ✅ 连接池已配置
+drizzle/                              ← ✅ 迁移文件已生成
+apps/web/app/api/llm/models/route.ts  ← ✅ 已有
+apps/web/app/api/llm/verify/route.ts  ← ✅ 已有
+```
+
+#### 与原 TaskAgent 的对应关系
+
+| 原 TaskAgent 文件 | 迁移目标 | 说明 |
+|-------------------|---------|------|
+| `src/task_agent/util/sqlite.ts` | `packages/core/src/db/client.ts` | SQLite → PostgreSQL + Drizzle |
+| `src/task_agent/util/storage.ts` | `packages/core/src/storage/task-md.ts` | task.md 读写迁移 |
+| `src/task_agent/util/data_fetching.ts` | `packages/core/src/services/task.service.ts` | 数据获取逻辑 |
+| `src/task_agent/friend.ts` | `packages/core/src/services/contact.service.ts` | 好友管理迁移 |
+
+---
+
+### 工程师B（前端/UI）— 负责 Phase 6, 9, 10, 12
+
+#### 需要新建的文件
+
+```
+packages/ui/src/screens/              ← 🔴 新增 Screen 组件
+├── PublishScreen.tsx                  — 发布中心入口（分身切换器 + 创建任务入口）
+├── TaskCreateScreen.tsx               — Intake 对话界面（聊天气泡 + SSE 流式 + 结构化预览卡片）
+├── AgentChatScreen.tsx                — 对话详情页（四种交互模式：人-人 / Agent-Agent / Agent-人 / 人-Agent）
+├── TaskDetailScreen.tsx               — 任务详情（task.md 查看/编辑 + FSM 状态时间线）
+├── HomeScreen.tsx                     — 首页（预留占位）
+└── DiscoverScreen.tsx                 — 发现（预留占位）
+
+packages/ui/src/components/           ← 🔴 新增通用组件
+├── PersonaSwitcher.tsx                — 分身切换器（发布Tab + 消息Tab 共用）
+├── ChatBubble.tsx                     — 聊天气泡（用户蓝色 / Agent灰色 + 打字机效果）
+├── HandshakeReportCard.tsx            — 握手报告展示卡片
+└── TaskPreviewCard.tsx                — 任务结构化预览卡片
+```
+
+#### 需要大改的文件
+
+```
+packages/ui/src/screens/MessageScreen.tsx   ← 🟡 大改
+  — 加顶部分身切换器
+  — 加消息/联系人二级 Tab
+  — 消息列表展示当前分身下的对话历史
+  — 联系人子模块（好友列表 + AI备注 + 好友请求管理）
+
+packages/ui/src/screens/ProfileScreen.tsx   ← 🟡 大改
+  — 加分身管理区域（列表 + 创建 + 编辑）
+  — 加 User.md AI侧写展示
+  — 加历史任务记录
+
+packages/ui/src/components/LiquidTabBar.tsx ← 🟡 调整
+  — 5 Tab 导航（首页 / 发现 / 发布 / 消息 / 我的）
+```
+
+#### 对接约定
+
+- Screen 组件**不直接 fetch**，通过 props 注入 service（依赖反转）
+- 流式显示通过 SSE `EventSource` 或 `fetch` + `ReadableStream`
+- 与后端A的对接接口见文档末尾「附录A：前后端数据契约」
+
+---
+
+### 工程师C（Agent核心/AI）— 负责 Phase 2, 4, 5, 8, 11, 12
+
+#### 需要新建的包和文件
+
+```
+packages/agent/                        ← 🔴 全新包（@repo/agent）
+├── package.json                       — 依赖 @repo/core, openai, zod
+├── tsup.config.ts
+└── src/
+    ├── index.ts                       — 统一导出
+    ├── shared/llm/                    ← 从 TaskAgent provider/ 迁移重构
+    │   ├── base-model.ts              — BaseModel 抽象类（chatOnce / chatStream / countTokens）
+    │   ├── openai-provider.ts         — GPT-4o 适配
+    │   ├── claude-provider.ts         — Claude API 适配（system 字段独立）
+    │   ├── qwen-provider.ts           — 通义千问适配（DashScope OpenAI兼容）
+    │   ├── provider-registry.ts       — 单例工厂 getProvider(name, model)
+    │   └── conversation.ts            — 多轮对话状态管理 + 自动历史裁剪
+    ├── shared/rag/                    ← 从 TaskAgent rag/ 迁移
+    │   ├── embedding.ts               — DashScope text-embedding-v4 封装
+    │   └── retrieval.ts               — 向量检索工具函数
+    ├── shared/memory/                 ← 从 TaskAgent memory.ts 迁移
+    │   ├── context.ts                 — Token 预算管理 + Prompt 构建
+    │   └── memory.ts                  — 记忆压缩 + flush + summary 生成
+    ├── task-agent/fsm/                ← 从 TaskAgent schema.ts + task_loop.ts 迁移
+    │   ├── schema.ts                  — 枚举 + Zod Schema + 状态迁移表
+    │   ├── transitions.ts             — assertTransitionAllowed + transitionTask
+    │   └── task-loop.ts               — runTaskStep 单步 FSM 推进
+    ├── task-agent/dispatcher/         ← 从 TaskAgent dispatcher.ts 拆分为三层
+    │   ├── dispatcher.ts              — 总线：processDraftingTasks / processSearchingTasks 等
+    │   ├── l0-filter.ts               — L0 硬过滤（SQL WHERE）
+    │   ├── l1-retrieval.ts            — L1 语义检索（pgvector HNSW）
+    │   └── l2-sandbox.ts              — L2 沙盒谈判（LLM 研判 ACCEPT/REJECT）
+    ├── task-agent/protocol/           ← 从 TaskAgent 相关逻辑迁移
+    │   ├── handshake.ts               — 握手消息发送 + 重试 + 超时
+    │   └── idempotency.ts             — 幂等校验
+    ├── task-agent/intake/
+    │   └── intake.ts                  — Intake 多轮对话收集任务信息
+    └── skills/
+        └── skill-router.ts            — Skill 路由注册（预留）
+```
+
+#### 与原 TaskAgent 的对应关系
+
+| 原 TaskAgent 文件 | 迁移目标 | 重构要点 |
+|-------------------|---------|---------|
+| `src/provider/*.ts` | `packages/agent/src/shared/llm/` | 统一为 BaseModel 抽象类 |
+| `src/llm/chat.ts` | `shared/llm/conversation.ts` | 加 Token 预算自动裁剪 |
+| `src/rag/embedding.ts` | `shared/rag/embedding.ts` | 改用 pgvector 存储 |
+| `src/rag/retrieval.ts` | `shared/rag/retrieval.ts` | SQLite → PostgreSQL `<=>` 运算符 |
+| `src/task_agent/util/schema.ts` | `task-agent/fsm/schema.ts` | 加 Zod 校验 |
+| `src/task_agent/task_loop.ts` | `task-agent/fsm/task-loop.ts` | 调用 @repo/core service 层 |
+| `src/task_agent/dispatcher.ts` | `task-agent/dispatcher/` | 拆为 L0/L1/L2 三个文件 |
+| `src/task_agent/intake.ts` | `task-agent/intake/intake.ts` | 结合 User.md 偏好引导 |
+| `src/task_agent/memory.ts` | `shared/memory/memory.ts` | 加 memory_summaries 表写入 |
+| `src/task_agent/context.ts` | `shared/memory/context.ts` | Token 预算管理独立 |
+| `src/templates/prompts.ts` | `skills/` 或各模块内 | 按场景拆分 Prompt 模板 |
+
+---
+
+### 三角协作界面总览
+
+```
+┌─────────────────┐     TypeScript 接口      ┌──────────────────┐
+│   工程师B (前端)  │◄──── LlmServiceLike ────►│  工程师A (后端)    │
+│   packages/ui/   │      TaskDocument 等      │  packages/core/   │
+│                  │      fetch /api/*         │  apps/web/api/    │
+└────────┬────────┘                           └────────┬─────────┘
+         │                                             │
+         │  Screen props 注入                    调用 service 层
+         │                                             │
+         │          ┌──────────────────┐               │
+         └─────────►│  工程师C (AI/Agent) │◄──────────────┘
+                    │  packages/agent/  │
+                    │  @repo/core 依赖   │
+                    └──────────────────┘
+```
+
+**协作规则**：
+- A 和 C 通过 `packages/core/src/services/` 的函数签名对齐
+- B 和 A 通过文档末尾「附录A：前后端数据契约」的 API 格式对齐
+- B 和 C 通过 `packages/core/src/types/` 的 TypeScript 类型对齐
+- 任何接口变更需三方同步，类型不匹配会导致编译报错（Turborepo 的天然约束）
+
+---
+
 ## 阶段依赖关系图
 
 ```
