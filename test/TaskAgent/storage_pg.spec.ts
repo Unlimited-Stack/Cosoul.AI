@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@repo/core/db/client";
 import { handshakeLogs, idempotencyKeys, personas, tasks, users } from "@repo/core/db/schema";
 import { eq, inArray } from "drizzle-orm";
-import type { HandshakeInboundEnvelope, HandshakeOutboundEnvelope } from "../src/task_agent/util/schema";
+import type { HandshakeInboundEnvelope, HandshakeOutboundEnvelope } from "../../TaskAgent(待合并)/src/task_agent/util/schema";
 import {
   appendAgentChatLog,
   findIdempotencyRecord,
@@ -24,7 +24,7 @@ import {
   saveTaskMD,
   setTaskHidden,
   transitionTaskStatus
-} from "../src/task_agent/util/storage";
+} from "../../TaskAgent(待合并)/src/task_agent/util/storage";
 
 // ─── 固定测试 UUID（与 seed 数据无关，afterAll 中清理）─────────────────────
 
