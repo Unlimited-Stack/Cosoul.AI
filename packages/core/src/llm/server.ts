@@ -8,7 +8,7 @@
 import http from "node:http";
 import https from "node:https";
 import { HttpsProxyAgent } from "https-proxy-agent";
-import type { VerifyResult } from "./client";
+import type { VerifyResult, ChatRequest, ChatResponse } from "./client";
 
 // ─── 配置 ──────────────────────────────────────────────────────
 
@@ -117,4 +117,67 @@ export async function verifyModelOnServer(
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, model: modelId, error: message };
   }
+}
+
+/**
+ * 服务端完整对话调用（支持 HTTPS 代理）
+ *
+ * BFF /api/llm/chat 路由调用此函数，将浏览器的 chat 请求转发到 Coding Plan。
+ * 与 client.ts 的 Direct 模式逻辑一致，但使用 node:http 以支持代理。
+ */
+export async function chatOnServer(
+  request: ChatRequest,
+  config: ServerLlmConfig,
+): Promise<ChatResponse> {
+  if (!config.apiKey) {
+    throw new Error("服务端未配置 API Key");
+  }
+
+  const start = Date.now();
+  const { status, data } = await postJSON(
+    `${config.baseUrl}/chat/completions`,
+    {
+      model: request.model,
+      messages: request.messages,
+      temperature: request.temperature ?? 0.7,
+      max_tokens: request.maxTokens,
+      stop: request.stop,
+    },
+    { ...config, timeout: config.timeout ?? 60_000 },
+  );
+  const latencyMs = Date.now() - start;
+
+  if (status < 200 || status >= 300) {
+    const errText = typeof data === "string" ? data : JSON.stringify(data);
+    throw new Error(`LLM API ${status}: ${errText.slice(0, 200)}`);
+  }
+
+  const body = data as Record<string, unknown>;
+  const choices = body.choices as
+    | Array<{ message?: { content?: string }; finish_reason?: string }>
+    | undefined;
+  const usageRaw = body.usage as
+    | { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+    | undefined;
+
+  return {
+    content: choices?.[0]?.message?.content ?? "",
+    finishReason: mapFinishReason(choices?.[0]?.finish_reason),
+    usage: {
+      promptTokens: usageRaw?.prompt_tokens ?? 0,
+      completionTokens: usageRaw?.completion_tokens ?? 0,
+      totalTokens: usageRaw?.total_tokens ?? 0,
+    },
+    model: (body.model as string) ?? request.model,
+    latencyMs,
+  };
+}
+
+/** 将 API 返回的 finish_reason 映射到内部枚举 */
+function mapFinishReason(
+  reason: string | null | undefined,
+): ChatResponse["finishReason"] {
+  if (reason === "stop") return "stop";
+  if (reason === "length") return "length";
+  return "unknown";
 }

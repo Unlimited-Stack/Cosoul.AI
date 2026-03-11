@@ -322,9 +322,9 @@ button.sidebar-footer-item {
   overflow-x: hidden;
   position: relative;
 
-  /* 内容水平+垂直居中（内容少时居中，内容多时正常滚动） */
+  /* 内容从顶部开始向下延伸，水平方向保持居中（适配 feed 类最大宽度布局） */
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
 }
 

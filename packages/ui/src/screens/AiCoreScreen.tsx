@@ -1,6 +1,6 @@
 /**
- * AiCoreScreen.tsx
- * 「Agent」页面 — 模型切换 + 状态反馈
+ * AiCoreScreen.tsx → AgentDebugScreen
+ * Agent 调试页面 — 模型连接测试 + 状态反馈
  *
  * 功能：
  * 1. 通过注入的 LlmService 获取模型列表（静态数据，无网络请求）
@@ -24,6 +24,7 @@ import {
   View,
 } from "react-native";
 import { useTheme } from "../theme/ThemeContext";
+import { ChevronLeftIcon } from "../components/TabIcons";
 
 // ─── 类型（从 @repo/core/llm 对齐） ─────────────────────────────
 
@@ -51,7 +52,12 @@ type SwitchStatus = "idle" | "loading" | "success" | "error";
 export interface AiCoreScreenProps {
   /** 注入的 LLM 服务实例（由各 App 层通过 @repo/core/llm 创建） */
   llmService: LlmServiceLike;
+  /** 返回上级页面的回调（Web 用 router.back()，Native 用 navigation.goBack()） */
+  onGoBack?: () => void;
 }
+
+/** 新别名，保留旧名做兼容 */
+export type AgentDebugScreenProps = AiCoreScreenProps;
 
 // ─── 能力标签颜色 ─────────────────────────────────────────────
 
@@ -63,7 +69,7 @@ const CAPABILITY_COLORS: Record<string, string> = {
 
 // ─── 主组件 ────────────────────────────────────────────────────
 
-export function AiCoreScreen({ llmService }: AiCoreScreenProps) {
+export function AiCoreScreen({ llmService, onGoBack }: AiCoreScreenProps) {
   const { colors, isDark } = useTheme();
 
   const [models, setModels] = useState<ModelInfo[]>([]);
@@ -143,12 +149,21 @@ export function AiCoreScreen({ llmService }: AiCoreScreenProps) {
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
-      {/* 标题 */}
+      {/* 标题栏：返回按钮 + 调试标题 */}
       <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>Agent</Text>
-        <Text style={[styles.subtitle, { color: colors.subtitle }]}>
-          AI Agent 智能匹配与社交协作
-        </Text>
+        <View style={styles.headerRow}>
+          {onGoBack && (
+            <TouchableOpacity onPress={onGoBack} style={styles.backBtn} activeOpacity={0.6}>
+              <ChevronLeftIcon size={22} color={colors.accent} />
+            </TouchableOpacity>
+          )}
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.title, { color: colors.text }]}>调试工具</Text>
+            <Text style={[styles.subtitle, { color: colors.subtitle }]}>
+              Coding Plan 模型连接测试
+            </Text>
+          </View>
+        </View>
       </View>
 
       {/* 顶部状态栏 — 嵌在标题和列表之间，不遮挡内容 */}
@@ -308,6 +323,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 8,
   },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  backBtn: {
+    marginRight: 8,
+    padding: 4,
+  },
   title: {
     fontSize: 24,
     fontWeight: "bold",
@@ -425,3 +448,6 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
 });
+
+/** 别名导出，语义更清晰 */
+export const AgentDebugScreen = AiCoreScreen;

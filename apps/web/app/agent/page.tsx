@@ -1,10 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
-import { AiCoreScreen } from "@repo/ui";
-import { createProxyLlmService } from "@repo/core/llm";
+import { useRouter } from "next/navigation";
+import { useCallback } from "react";
+import { AgentScreen } from "@repo/ui";
 
+/** Agent 主页面 — 点击扳手图标跳转到 /agent/debug 调试页 */
 export default function AgentPage() {
-  const llmService = useMemo(() => createProxyLlmService("/api"), []);
-  return <AiCoreScreen llmService={llmService} />;
+  const router = useRouter();
+  const handleNavigateDebug = useCallback(() => router.push("/agent/debug"), [router]);
+
+  return <AgentScreen onNavigateDebug={handleNavigateDebug} />;
 }

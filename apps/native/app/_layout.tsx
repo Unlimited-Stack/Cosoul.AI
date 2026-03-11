@@ -14,6 +14,8 @@ export default function AppLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ headerShown: false, presentation: "modal" }} />
+        {/* Agent 调试页：从 Agent 主页扳手图标进入，modal 形式展示 */}
+        <Stack.Screen name="agent-debug" options={{ headerShown: false, presentation: "modal" }} />
       </Stack>
     </ThemeProvider>
   );

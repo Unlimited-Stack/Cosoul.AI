@@ -239,6 +239,72 @@ export function getDefaultService(): LlmService {
   });
 }
 
+// ─── 平台自适应工厂 ──────────────────────────────────────────────
+
+/**
+ * 平台标识：App 层在初始化时传入，工厂据此选择 Proxy 或 Direct 模式。
+ * - "web-browser"：Next.js 前端，走同源 BFF 代理 ("/api")
+ * - "expo-web"：Expo Web 模式，走跨域 BFF 代理 (需显式传 bffUrl)
+ * - "native"：React Native 手机端，直连 Coding Plan（无 CORS 限制）
+ * - "node"：Node.js 服务端 / TaskAgent，直连 Coding Plan（读环境变量）
+ */
+export type LlmPlatform = "web-browser" | "expo-web" | "native" | "node";
+
+export interface PlatformLlmConfig {
+  platform: LlmPlatform;
+  /** Proxy 模式下的 BFF 地址（web-browser 默认 "/api"，expo-web 必须提供） */
+  proxyBaseUrl?: string;
+  /** Direct 模式下的 Coding Plan 地址 */
+  baseUrl?: string;
+  /** Direct 模式下的 API Key */
+  apiKey?: string;
+  /** Direct 模式下的超时毫秒数 */
+  timeoutMs?: number;
+}
+
+/**
+ * 统一 Service 工厂 — 根据平台自动选择 Proxy / Direct 模式。
+ * App 层只需调用一次，然后通过 React Context 共享给所有子页面。
+ *
+ * @example
+ * // Next.js Web
+ * const service = createLlmServiceForPlatform({ platform: "web-browser" });
+ *
+ * // Expo Web（跨域场景）
+ * const service = createLlmServiceForPlatform({ platform: "expo-web", proxyBaseUrl: "http://localhost:3030/api" });
+ *
+ * // Native 手机
+ * const service = createLlmServiceForPlatform({ platform: "native", baseUrl: "https://...", apiKey: "sk-..." });
+ *
+ * // Node.js / TaskAgent（读环境变量）
+ * const service = createLlmServiceForPlatform({ platform: "node" });
+ */
+export function createLlmServiceForPlatform(config: PlatformLlmConfig): LlmService {
+  switch (config.platform) {
+    case "web-browser":
+      return createProxyLlmService(config.proxyBaseUrl ?? "/api");
+
+    case "expo-web":
+      if (!config.proxyBaseUrl) {
+        throw new Error("expo-web 平台必须提供 proxyBaseUrl（BFF 地址）");
+      }
+      return createProxyLlmService(config.proxyBaseUrl);
+
+    case "native":
+      return createDirectLlmService({
+        baseUrl: config.baseUrl ?? "https://coding.dashscope.aliyuncs.com/v1",
+        apiKey: config.apiKey ?? "",
+        timeoutMs: config.timeoutMs,
+      });
+
+    case "node":
+      return getDefaultService();
+
+    default:
+      throw new Error(`未知平台: ${config.platform as string}`);
+  }
+}
+
 // ─── 内部工具函数 ──────────────────────────────────────────────
 
 function buildHeaders(apiKey: string): Record<string, string> {

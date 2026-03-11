@@ -16,9 +16,12 @@ export {
   type DirectLlmConfig,
   type ChatRequest,
   type ChatResponse,
+  type LlmPlatform,
+  type PlatformLlmConfig,
   createDirectLlmService,
   createProxyLlmService,
   getDefaultService,
+  createLlmServiceForPlatform,
 } from "./client";
 
 // 高层对话工具（单次 + 多轮）
