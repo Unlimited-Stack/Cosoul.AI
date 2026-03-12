@@ -1,4 +1,4 @@
-import type { PersonaContext } from "../types";
+import type { PersonaContext } from "../persona-agent/types";
 import { buildTaskDocument, extractFromConversation } from "./intake";
 import { runTaskStep, runTaskStepById, saveIntakeResult } from "./task_loop";
 import { readTaskDocument, saveTaskMD, transitionTaskStatus } from "./storage";

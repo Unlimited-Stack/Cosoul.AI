@@ -7,7 +7,7 @@
  * 跳过条件：如果 DASHSCOPE_API_KEY 未设置则自动跳过
  */
 import { describe, it, expect, beforeAll } from "vitest";
-import { embedText, embedBatch, embedTaskFields, cosineSimilarity } from "../src/persona-agent/task-agent/embedding";
+import { embedText, embedBatch, embedTaskFields, cosineSimilarity } from "../src/task-agent/embedding";
 
 const HAS_API_KEY = !!process.env.DASHSCOPE_API_KEY;
 

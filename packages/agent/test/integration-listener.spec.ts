@@ -5,6 +5,8 @@
  *   - PostgreSQL 数据库可达
  *   - 启动内置 HTTP server 在随机端口
  *
+ * 所有测试数据统一使用 [MIGRATE_0312] 前缀标识。
+ *
  * 测试覆盖：
  *   - GET  /tasks               列表
  *   - POST /tasks               创建
@@ -21,9 +23,12 @@ import { randomUUID } from "node:crypto";
 import { db } from "@repo/core/db/client";
 import { users, personas, tasks } from "@repo/core/db/schema";
 import { eq } from "drizzle-orm";
-import { startListener, stopListener, isListenerRunning } from "../src/persona-agent/task-agent/listener";
-import { saveTaskMD } from "../src/persona-agent/task-agent/storage";
-import type { TaskDocument } from "../src/persona-agent/task-agent/types";
+import { startListener, stopListener, isListenerRunning } from "../src/task-agent/listener";
+import { saveTaskMD } from "../src/task-agent/storage";
+import type { TaskDocument } from "../src/task-agent/types";
+
+// ─── 统一标识前缀 ──────────────────────────────────────────────
+const TAG = "MIGRATE_0312";
 
 const TEST_PORT = 18_000 + Math.floor(Math.random() * 1000);
 const BASE = `http://127.0.0.1:${TEST_PORT}`;
@@ -50,9 +55,9 @@ function makeTaskDocument(taskId: string): TaskDocument {
       hidden: false
     },
     body: {
-      rawDescription: "HTTP 测试任务",
-      targetActivity: "测试",
-      targetVibe: "测试氛围",
+      rawDescription: `[${TAG}] HTTP Listener 测试任务`,
+      targetActivity: `[${TAG}] 监听测试活动`,
+      targetVibe: `[${TAG}] 测试氛围`,
       detailedPlan: ""
     }
   } as TaskDocument;
@@ -80,13 +85,13 @@ beforeAll(async () => {
   // 创建测试数据
   await db.insert(users).values({
     userId: TEST_USER_ID,
-    email: `listener-test-${TEST_USER_ID.slice(0, 8)}@test.local`,
-    name: "Listener Test User"
+    email: `${TAG}_listener_${TEST_USER_ID.slice(0, 8)}@test.local`,
+    name: `[${TAG}] Listener Test User`
   });
   await db.insert(personas).values({
     personaId: TEST_PERSONA_ID,
     userId: TEST_USER_ID,
-    name: "Listener Test Persona"
+    name: `[${TAG}] Listener Test Persona`
   });
 
   // 预先通过 storage 创建一个任务
@@ -100,6 +105,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   // 只关闭 HTTP server，不清理数据库数据
+  // 搜索关键词 MIGRATE_0312 即可定位所有本次测试产生的数据
   if (isListenerRunning()) {
     await stopListener();
   }
@@ -134,7 +140,7 @@ describe("HTTP Listener Endpoints", () => {
     const { status, body } = await fetchJson(`/tasks/${TEST_TASK_ID}`);
     expect(status).toBe(200);
     expect(body.task.frontmatter.task_id).toBe(TEST_TASK_ID);
-    expect(body.task.body.rawDescription).toBe("HTTP 测试任务");
+    expect(body.task.body.rawDescription).toBe(`[${TAG}] HTTP Listener 测试任务`);
   });
 
   it("GET /tasks/:id — 不存在的 task 应返回 404", async () => {
@@ -153,7 +159,6 @@ describe("HTTP Listener Endpoints", () => {
   it("POST /tasks/:id/hidden — 隐藏任务", async () => {
     if (!serverReady) return;
 
-    // 设置为隐藏
     const { status: s1, body: b1 } = await fetchJson(`/tasks/${TEST_TASK_ID}/hidden`, {
       method: "POST",
       body: JSON.stringify({ hidden: true })
@@ -161,7 +166,6 @@ describe("HTTP Listener Endpoints", () => {
     expect(s1).toBe(200);
     expect(b1.task.frontmatter.hidden).toBe(true);
 
-    // 取消隐藏
     const { status: s2, body: b2 } = await fetchJson(`/tasks/${TEST_TASK_ID}/hidden`, {
       method: "POST",
       body: JSON.stringify({ hidden: false })

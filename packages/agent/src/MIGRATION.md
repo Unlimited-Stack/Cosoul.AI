@@ -1,13 +1,14 @@
 # TaskAgent 迁移说明
 
-> 从 `TaskAgent(待合并)/src/` 到 `packages/agent/src/persona-agent/task-agent/` 的完整迁移记录。
+> 从 `TaskAgent(待合并)/src/` 到 `packages/agent/src/task-agent/` 的完整迁移记录。
+> （task-agent 与 persona-agent 平级，支持多 Persona 复用）
 
 ---
 
 ## 一、迁移文件对照表
 
 ```
-TaskAgent(待合并)/src/                    → packages/agent/src/persona-agent/task-agent/
+TaskAgent(待合并)/src/                    → packages/agent/src/task-agent/
 ├── task_agent/context.ts                 → context.ts          ✅ 已迁移（+ soulText 注入）
 ├── task_agent/dispatcher.ts              → dispatcher.ts       ✅ 已迁移（精简批量函数）
 ├── task_agent/intake.ts                  → intake.ts           ✅ 已迁移（+ 导出 extractFromConversation / buildTaskDocument）
@@ -94,7 +95,7 @@ TaskAgent(待合并)/src/                    → packages/agent/src/persona-agen
 │  ├─ index.ts          ← PersonaAgent 主类（Soul.md + Memory.md）  │
 │  ├─ getContext()       ← 注入 PersonaContext 只读快照              │
 │  │                                                                │
-│  └─ task-agent/       ← TaskAgent 子模块                          │
+│  task-agent/          ← TaskAgent 平级模块（与 persona-agent 同级）│
 │     ├─ index.ts       ← TaskAgent 类 + createTaskAgentFromIntake()│
 │     ├─ listener.ts    ← HTTP API 网关（被动流 + 任务操作端点）     │
 │     ├─ task_loop.ts   ← FSM 推进引擎                              │

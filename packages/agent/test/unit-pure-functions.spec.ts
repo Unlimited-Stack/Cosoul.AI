@@ -5,18 +5,18 @@
  * - TaskMD 序列化/反序列化
  */
 import { describe, it, expect } from "vitest";
-import { cosineSimilarity } from "../src/persona-agent/task-agent/embedding";
+import { cosineSimilarity } from "../src/task-agent/embedding";
 import {
   TaskDocumentSchema,
   HandshakeInboundEnvelopeSchema,
   HandshakeOutboundEnvelopeSchema,
   NegotiationSessionSchema,
   parseTaskDocument
-} from "../src/persona-agent/task-agent/types";
+} from "../src/task-agent/types";
 import {
   parseTaskMDContent,
   serializeTaskMDContent
-} from "../src/persona-agent/task-agent/storage";
+} from "../src/task-agent/storage";
 
 // ─── cosineSimilarity ───────────────────────────────────────────
 

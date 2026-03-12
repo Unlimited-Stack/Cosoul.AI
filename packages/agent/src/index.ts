@@ -44,8 +44,8 @@ export { learnFromTaskSummary } from "./persona-agent/preference-learner";
 export { appendHistoryAnnotation } from "./persona-agent/soul-updater";
 
 // ============================================================
-// TaskAgent — 单任务执行引擎（嵌套在 PersonaAgent 之下）
+// TaskAgent — 单任务执行引擎（与 PersonaAgent 平级，支持多 Persona 复用）
 // ============================================================
-export { TaskAgent, createTaskAgentFromIntake } from "./persona-agent/task-agent/index";
-export type { TaskStepResult } from "./persona-agent/task-agent/index";
-export type { TaskDocument, TaskStatus } from "./persona-agent/task-agent/types";
+export { TaskAgent, createTaskAgentFromIntake } from "./task-agent/index";
+export type { TaskStepResult } from "./task-agent/index";
+export type { TaskDocument, TaskStatus } from "./task-agent/types";

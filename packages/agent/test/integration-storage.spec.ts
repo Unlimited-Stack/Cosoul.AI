@@ -5,7 +5,8 @@
  *   - PostgreSQL 数据库可达（DATABASE_URL 环境变量或默认连接串）
  *   - 数据库表已迁移（users, personas, tasks 等表存在）
  *
- * 注意：测试会在数据库中创建真实数据，测试完成后通过 afterAll 清理。
+ * 注意：测试会在数据库中创建真实数据，afterAll 已注释，保留数据供检查。
+ *       所有测试数据统一使用 [MIGRATE_0312] 前缀标识。
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { randomUUID } from "node:crypto";
@@ -22,10 +23,11 @@ import {
   queryL0Candidates,
   parseTaskMDContent,
   serializeTaskMDContent
-} from "../src/persona-agent/task-agent/storage";
-import type { TaskDocument } from "../src/persona-agent/task-agent/types";
+} from "../src/task-agent/storage";
+import type { TaskDocument } from "../src/task-agent/types";
 
-// ─── 测试用 fixture ─────────────────────────────────────────────
+// ─── 统一标识前缀 ──────────────────────────────────────────────
+const TAG = "MIGRATE_0312";
 
 const TEST_USER_ID = randomUUID();
 const TEST_PERSONA_ID = randomUUID();
@@ -54,9 +56,9 @@ function makeTaskDocument(
       ...overrides
     },
     body: {
-      rawDescription: "测试任务描述",
-      targetActivity: "测试活动",
-      targetVibe: "轻松测试",
+      rawDescription: `[${TAG}] 存储层测试任务`,
+      targetActivity: `[${TAG}] 测试活动`,
+      targetVibe: `[${TAG}] 轻松测试氛围`,
       detailedPlan: "",
       ...overrides?.body
     }
@@ -67,7 +69,6 @@ function makeTaskDocument(
 
 beforeAll(async () => {
   try {
-    // 测试数据库连接
     await db.select().from(users).limit(1);
     dbReachable = true;
   } catch (e) {
@@ -78,26 +79,30 @@ beforeAll(async () => {
   // 创建测试用的 user + persona（外键依赖）
   await db.insert(users).values({
     userId: TEST_USER_ID,
-    email: `test-${TEST_USER_ID.slice(0, 8)}@test.local`,
-    name: "Test User"
+    email: `${TAG}_storage_${TEST_USER_ID.slice(0, 8)}@test.local`,
+    name: `[${TAG}] Storage Test User`
   });
 
   await db.insert(personas).values({
     personaId: TEST_PERSONA_ID,
     userId: TEST_USER_ID,
-    name: "Test Persona"
+    name: `[${TAG}] Storage Test Persona`
   });
 });
 
-afterAll(async () => {
-  // 不清理测试数据，保留在数据库中供检查
-});
+// afterAll — 注释掉以保留测试数据，方便在数据库中查看
+// 搜索关键词 MIGRATE_0312 即可定位所有本次测试产生的数据
+// afterAll(async () => {
+//   if (!dbReachable) return;
+//   await db.delete(tasks).where(eq(tasks.taskId, TEST_TASK_ID));
+//   await db.delete(tasks).where(eq(tasks.taskId, TEST_TASK_ID_2));
+//   await db.delete(personas).where(eq(personas.personaId, TEST_PERSONA_ID));
+//   await db.delete(users).where(eq(users.userId, TEST_USER_ID));
+// });
 
 // ─── 测试用例 ───────────────────────────────────────────────────
 
 describe.skipIf(!true)("Storage: PostgreSQL CRUD", () => {
-  // 这里的 skipIf 会在 beforeAll 之后运行，
-  // 但由于 vitest 限制，我们在每个 test 内部检查 dbReachable
 
   it("saveTaskMD — 应能成功创建新任务 (INSERT)", async () => {
     if (!dbReachable) return;
@@ -105,11 +110,10 @@ describe.skipIf(!true)("Storage: PostgreSQL CRUD", () => {
     const task = makeTaskDocument(TEST_TASK_ID);
     await saveTaskMD(task, { personaId: TEST_PERSONA_ID });
 
-    // 验证写入
     const rows = await db.select().from(tasks).where(eq(tasks.taskId, TEST_TASK_ID));
     expect(rows.length).toBe(1);
     expect(rows[0].status).toBe("Drafting");
-    expect(rows[0].rawDescription).toBe("测试任务描述");
+    expect(rows[0].rawDescription).toBe(`[${TAG}] 存储层测试任务`);
   });
 
   it("readTaskDocument — 应能正确读取刚创建的任务", async () => {
@@ -118,14 +122,12 @@ describe.skipIf(!true)("Storage: PostgreSQL CRUD", () => {
     const doc = await readTaskDocument(TEST_TASK_ID);
     expect(doc.frontmatter.task_id).toBe(TEST_TASK_ID);
     expect(doc.frontmatter.status).toBe("Drafting");
-    expect(doc.body.rawDescription).toBe("测试任务描述");
-    expect(doc.body.targetActivity).toBe("测试活动");
+    expect(doc.body.rawDescription).toBe(`[${TAG}] 存储层测试任务`);
+    expect(doc.body.targetActivity).toBe(`[${TAG}] 测试活动`);
   });
 
   it("readTaskDocument — 不存在的 task 应抛出 E_TASK_NOT_FOUND", async () => {
     if (!dbReachable) return;
-
-    // task_id 必须是合法 UUID 格式，否则 PostgreSQL 会抛 syntax error
     await expect(readTaskDocument("00000000-0000-0000-0000-000000000000")).rejects.toThrow("E_TASK_NOT_FOUND");
   });
 
@@ -135,19 +137,18 @@ describe.skipIf(!true)("Storage: PostgreSQL CRUD", () => {
     const doc = await readTaskDocument(TEST_TASK_ID);
     const updated: TaskDocument = {
       frontmatter: { ...doc.frontmatter, updated_at: new Date().toISOString() },
-      body: { ...doc.body, rawDescription: "更新后的描述" }
+      body: { ...doc.body, rawDescription: `[${TAG}] 更新后的描述` }
     };
     await saveTaskMD(updated);
 
     const reloaded = await readTaskDocument(TEST_TASK_ID);
-    expect(reloaded.body.rawDescription).toBe("更新后的描述");
+    expect(reloaded.body.rawDescription).toBe(`[${TAG}] 更新后的描述`);
   });
 
   it("saveTaskMD — 乐观锁冲突应抛出 E_VERSION_CONFLICT", async () => {
     if (!dbReachable) return;
 
     const doc = await readTaskDocument(TEST_TASK_ID);
-    // 传入错误的 expectedVersion
     await expect(
       saveTaskMD(doc, { expectedVersion: doc.frontmatter.version + 999 })
     ).rejects.toThrow("E_VERSION_CONFLICT");
@@ -167,8 +168,6 @@ describe.skipIf(!true)("Storage: PostgreSQL CRUD", () => {
 
   it("transitionTaskStatus — 非法迁移应抛出 E_INVALID_TRANSITION", async () => {
     if (!dbReachable) return;
-
-    // Searching → Closed 不在 FSM 允许列表中
     await expect(transitionTaskStatus(TEST_TASK_ID, "Closed")).rejects.toThrow("E_INVALID_TRANSITION");
   });
 
@@ -204,24 +203,20 @@ describe.skipIf(!true)("Storage: PostgreSQL CRUD", () => {
   it("queryL0Candidates — 应能查询兼容候选任务", async () => {
     if (!dbReachable) return;
 
-    // 创建第二个 Searching 任务
     const task2 = makeTaskDocument(TEST_TASK_ID_2, {
       status: "Searching",
       interaction_type: "online"
     });
     await saveTaskMD(task2, { personaId: TEST_PERSONA_ID });
 
-    // TEST_TASK_ID 当前也是 Searching，两者 interaction_type 都是 online → 兼容
     const candidates = await queryL0Candidates(TEST_TASK_ID);
     expect(candidates).toContain(TEST_TASK_ID_2);
-    // 不应包含自身
     expect(candidates).not.toContain(TEST_TASK_ID);
   });
 
   it("transitionTaskStatus — 完整 FSM 路径: Searching → Negotiating → Waiting_Human → Closed", async () => {
     if (!dbReachable) return;
 
-    // 使用 task2 做完整路径测试
     await transitionTaskStatus(TEST_TASK_ID_2, "Negotiating");
     let doc = await readTaskDocument(TEST_TASK_ID_2);
     expect(doc.frontmatter.status).toBe("Negotiating");

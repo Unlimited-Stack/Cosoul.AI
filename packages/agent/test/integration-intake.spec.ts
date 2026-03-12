@@ -7,8 +7,8 @@
  * 跳过条件：如果 LLM API 不可用则跳过
  */
 import { describe, it, expect } from "vitest";
-import { extractFromConversation, buildTaskDocument } from "../src/persona-agent/task-agent/intake";
-import { TaskDocumentSchema } from "../src/persona-agent/task-agent/types";
+import { extractFromConversation, buildTaskDocument } from "../src/task-agent/intake";
+import { TaskDocumentSchema } from "../src/task-agent/types";
 
 const HAS_LLM_KEY = !!(process.env.DASHSCOPE_API_KEY || process.env.OPENAI_API_KEY);
 
