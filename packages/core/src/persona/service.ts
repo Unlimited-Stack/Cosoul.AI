@@ -169,6 +169,26 @@ export async function listPersonasDebug(userId: string) {
   return result;
 }
 
+/** 删除分身（级联删除关联的 tasks） */
+export async function deletePersona(personaId: string) {
+  // 先删关联任务，再删分身
+  await db.delete(schema.tasks).where(eq(schema.tasks.personaId, personaId));
+  const [deleted] = await db
+    .delete(schema.personas)
+    .where(eq(schema.personas.personaId, personaId))
+    .returning({ personaId: schema.personas.personaId });
+  return deleted ?? null;
+}
+
+/** 删除单个任务 */
+export async function deleteTask(taskId: string) {
+  const [deleted] = await db
+    .delete(schema.tasks)
+    .where(eq(schema.tasks.taskId, taskId))
+    .returning({ taskId: schema.tasks.taskId });
+  return deleted ?? null;
+}
+
 /** 创建新任务，初始状态为 Drafting */
 export async function createTask(
   personaId: string,

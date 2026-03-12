@@ -48,6 +48,8 @@ export interface PersonaServiceLike {
     status: string;
     interactionType: string;
   }>;
+  deletePersona(personaId: string): Promise<void>;
+  deleteTask(personaId: string, taskId: string): Promise<void>;
 }
 
 // ─── 通用 fetch 封装 ──────────────────────────────────────────────
@@ -99,6 +101,16 @@ export function createProxyPersonaService(
         method: "POST",
         body: JSON.stringify(input),
       });
+    },
+
+    /** 删除分身（级联删除关联任务） */
+    async deletePersona(personaId) {
+      await request(`${baseUrl}/personas/${personaId}`, { method: "DELETE" });
+    },
+
+    /** 删除单个任务 */
+    async deleteTask(personaId, taskId) {
+      await request(`${baseUrl}/personas/${personaId}/tasks/${taskId}`, { method: "DELETE" });
     },
   };
 }

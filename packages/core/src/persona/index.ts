@@ -17,6 +17,8 @@ export {
   getPersonaWithProfile,
   listTasks,
   createTask,
+  deletePersona,
+  deleteTask,
 } from "./service";
 
 // 客户端 Proxy 服务 + 平台工厂

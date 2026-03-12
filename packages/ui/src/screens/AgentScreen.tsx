@@ -19,6 +19,7 @@ import {
 import { useTheme } from "../theme/ThemeContext";
 import { WrenchIcon } from "../components/TabIcons";
 import { PullRefreshScrollView } from "../components/PullRefreshScrollView";
+import { SwipeToDelete } from "../components/SwipeToDelete";
 
 // ─── 领域类型 ─────────────────────────────────────────────────────
 
@@ -56,6 +57,8 @@ export interface PersonaService {
   createPersona(input: CreatePersonaInput): Promise<Persona>;
   listTasks(personaId: string): Promise<AgentTask[]>;
   createTask(personaId: string, input: CreateTaskInput): Promise<AgentTask>;
+  deletePersona(personaId: string): Promise<void>;
+  deleteTask(personaId: string, taskId: string): Promise<void>;
 }
 
 export interface AgentScreenProps {
@@ -65,6 +68,8 @@ export interface AgentScreenProps {
   personaService: PersonaService;
   /** 隐藏底部"添加人格 Agent"按钮（Native 端已有长按气泡入口，无需此按钮） */
   hideAddPersona?: boolean;
+  /** 隐藏展开区域内的 Web 专属控件（添加任务表单 + 删除人格按钮）— Native 端用滑动删除和对话创建 */
+  hideInlineControls?: boolean;
 }
 
 // ─── 交互类型选项 ─────────────────────────────────────────────────
@@ -77,7 +82,7 @@ const INTERACTION_TYPES: { value: CreateTaskInput["interactionType"]; label: str
 
 // ─── 主组件 ────────────────────────────────────────────────────────
 
-export function AgentScreen({ onNavigateDebug, personaService, hideAddPersona }: AgentScreenProps) {
+export function AgentScreen({ onNavigateDebug, personaService, hideAddPersona, hideInlineControls }: AgentScreenProps) {
   const { colors, isDark } = useTheme();
 
   // 人格列表
@@ -168,6 +173,31 @@ export function AgentScreen({ onNavigateDebug, personaService, hideAddPersona }:
     }
   }, [taskForm, personaService]);
 
+  // ── 删除人格 ────────────────────────────────────────────────
+  const handleDeletePersona = useCallback(async (personaId: string) => {
+    try {
+      await personaService.deletePersona(personaId);
+      setPersonas((prev) => prev.filter((p) => p.personaId !== personaId));
+      setTaskMap((prev) => { const next = { ...prev }; delete next[personaId]; return next; });
+      if (expandedPersona === personaId) setExpandedPersona(null);
+    } catch (err) {
+      console.warn("[AgentScreen] 删除人格失败:", err);
+    }
+  }, [personaService, expandedPersona]);
+
+  // ── 删除任务 ────────────────────────────────────────────────
+  const handleDeleteTask = useCallback(async (personaId: string, taskId: string) => {
+    try {
+      await personaService.deleteTask(personaId, taskId);
+      setTaskMap((prev) => ({
+        ...prev,
+        [personaId]: (prev[personaId] ?? []).filter((t) => t.taskId !== taskId),
+      }));
+    } catch (err) {
+      console.warn("[AgentScreen] 删除任务失败:", err);
+    }
+  }, [personaService]);
+
   // ── 样式动态值 ────────────────────────────────────────────────
   const cardBg = isDark ? "rgba(120,120,128,0.16)" : "rgba(142,142,147,0.08)";
   const inputBg = isDark ? "rgba(120,120,128,0.20)" : "rgba(142,142,147,0.10)";
@@ -221,8 +251,12 @@ export function AgentScreen({ onNavigateDebug, personaService, hideAddPersona }:
           const showTaskForm = showCreateTaskFor === persona.personaId;
 
           return (
-            <View
+            <SwipeToDelete
               key={persona.personaId}
+              onDelete={() => handleDeletePersona(persona.personaId)}
+              style={styles.swipeContainer}
+            >
+            <View
               style={[styles.personaCard, { backgroundColor: cardBg, borderColor: dividerColor }]}
             >
               {/* 人格头部 — 点击展开/收起 */}
@@ -263,28 +297,33 @@ export function AgentScreen({ onNavigateDebug, personaService, hideAddPersona }:
                   )}
 
                   {tasks.map((task) => (
-                    <View
+                    <SwipeToDelete
                       key={task.taskId}
-                      style={[styles.taskCard, { backgroundColor: inputBg, borderColor: dividerColor }]}
+                      onDelete={() => handleDeleteTask(persona.personaId, task.taskId)}
+                      style={styles.swipeTaskContainer}
                     >
-                      <View style={styles.taskCardTop}>
-                        <Text style={[styles.taskDesc, { color: colors.text }]} numberOfLines={2}>
-                          {task.rawDescription}
-                        </Text>
-                        <View style={[styles.statusBadge, { backgroundColor: statusColor(task.status, isDark) + "22" }]}>
-                          <Text style={[styles.statusText, { color: statusColor(task.status, isDark) }]}>
-                            {task.status}
+                      <View
+                        style={[styles.taskCard, { backgroundColor: inputBg, borderColor: dividerColor }]}
+                      >
+                        <View style={styles.taskCardTop}>
+                          <Text style={[styles.taskDesc, { color: colors.text }]} numberOfLines={2}>
+                            {task.rawDescription}
                           </Text>
+                          <View style={[styles.statusBadge, { backgroundColor: statusColor(task.status, isDark) + "22" }]}>
+                            <Text style={[styles.statusText, { color: statusColor(task.status, isDark) }]}>
+                              {task.status}
+                            </Text>
+                          </View>
                         </View>
+                        <Text style={[styles.taskMeta, { color: colors.subtitle }]}>
+                          互动方式：{task.interactionType === "any" ? "不限" : task.interactionType === "online" ? "线上" : "线下"}
+                        </Text>
                       </View>
-                      <Text style={[styles.taskMeta, { color: colors.subtitle }]}>
-                        互动方式：{task.interactionType === "any" ? "不限" : task.interactionType === "online" ? "线上" : "线下"}
-                      </Text>
-                    </View>
+                    </SwipeToDelete>
                   ))}
 
-                  {/* 添加任务表单 */}
-                  {showTaskForm ? (
+                  {/* 添加任务表单 + 删除人格按钮 — Web 专属，Native 端用滑动删除和对话创建 */}
+                  {!hideInlineControls && (showTaskForm ? (
                     <View style={[styles.formBox, { backgroundColor: inputBg, borderColor: dividerColor }]}>
                       <Text style={[styles.formLabel, { color: colors.subtitle }]}>任务描述</Text>
                       <TextInput
@@ -347,10 +386,22 @@ export function AgentScreen({ onNavigateDebug, personaService, hideAddPersona }:
                     >
                       <Text style={[styles.addBtnText, { color: colors.accent }]}>+ 添加任务 Agent</Text>
                     </TouchableOpacity>
+                  ))}
+
+                  {/* Web 端删除人格按钮（与上方「添加任务」按钮对齐） */}
+                  {!hideInlineControls && (
+                    <TouchableOpacity
+                      style={[styles.deletePersonaBtn, { borderColor: "#FF3B30" + "50" }]}
+                      onPress={() => handleDeletePersona(persona.personaId)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.deletePersonaBtnText}>🗑 删除此人格</Text>
+                    </TouchableOpacity>
                   )}
                 </View>
               )}
             </View>
+            </SwipeToDelete>
           );
         })}
 
@@ -485,7 +536,6 @@ const styles = StyleSheet.create({
   personaCard: {
     borderRadius: 14,
     borderWidth: 0.5,
-    marginBottom: 12,
     overflow: "hidden",
   },
   personaCardHead: {
@@ -514,7 +564,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 0.5,
     padding: 12,
-    marginBottom: 8,
   },
   taskCardTop: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 4 },
   taskDesc: { flex: 1, fontSize: 14 },
@@ -609,4 +658,23 @@ const styles = StyleSheet.create({
   },
   addPersonaBtnText: { fontSize: 16, fontWeight: "700", marginBottom: 4 },
   addPersonaBtnHint: { fontSize: 12 },
+
+  // 左滑删除容器
+  swipeContainer: { marginBottom: 12, borderRadius: 14 },
+  swipeTaskContainer: { marginBottom: 8, borderRadius: 10 },
+
+  // Web 端删除人格按钮
+  deletePersonaBtn: {
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderRadius: 10,
+    padding: 10,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  deletePersonaBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#FF3B30",
+  },
 });
