@@ -49,3 +49,11 @@ export { appendHistoryAnnotation } from "./persona-agent/soul-updater";
 export { TaskAgent, createTaskAgentFromIntake } from "./task-agent/index";
 export type { TaskStepResult } from "./task-agent/index";
 export type { TaskDocument, TaskStatus } from "./task-agent/types";
+
+// Intake 层 — 多轮对话提取（BFF 路由直接调用）
+export {
+  createExtractionConversation,
+  extractFromConversation,
+  buildTaskDocument,
+} from "./task-agent/intake";
+export type { ExtractionResult, IntakePersistCtx } from "./task-agent/intake";

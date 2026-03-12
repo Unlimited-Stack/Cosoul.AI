@@ -25,17 +25,17 @@ import {
   createExtractionConversation,
   extractFromConversation,
   buildTaskDocument,
-} from "../src/task-agent/intake";
-import { embedTaskFields } from "../src/task-agent/embedding";
-import { saveTaskVectors, readTaskVectors } from "../src/task-agent/retrieval";
+} from "../packages/agent/src/task-agent/intake";
+import { embedTaskFields } from "../packages/agent/src/task-agent/embedding";
+import { saveTaskVectors, readTaskVectors } from "../packages/agent/src/task-agent/retrieval";
 import {
   saveTaskMD,
   readTaskDocument,
   transitionTaskStatus,
-} from "../src/task-agent/storage";
-import { processDraftingTask, processSearchingTask } from "../src/task-agent/dispatcher";
-import { saveIntakeResult } from "../src/task-agent/task_loop";
-import type { TaskDocument } from "../src/task-agent/types";
+} from "../packages/agent/src/task-agent/storage";
+import { processDraftingTask, processSearchingTask } from "../packages/agent/src/task-agent/dispatcher";
+import { saveIntakeResult } from "../packages/agent/src/task-agent/task_loop";
+import type { TaskDocument } from "../packages/agent/src/task-agent/types";
 
 // ─── 标识 & ID ───────────────────────────────────────────────────
 const TAG = "FLOW_TEST";

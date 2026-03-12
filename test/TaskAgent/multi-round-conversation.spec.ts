@@ -20,13 +20,13 @@ import {
   createExtractionConversation,
   extractFromConversation,
   buildTaskDocument,
-} from "../../src/task-agent/intake";
+} from "../../packages/agent/src/task-agent/intake";
 import {
   createReviseSession,
   processReviseMessage,
-} from "../../src/task-agent/revise";
-import { saveTaskMD, readTaskDocument, serializeTaskMDContent } from "../../src/task-agent/storage";
-import { TaskDocumentSchema, type TaskDocument } from "../../src/task-agent/types";
+} from "../../packages/agent/src/task-agent/revise";
+import { saveTaskMD, readTaskDocument, serializeTaskMDContent } from "../../packages/agent/src/task-agent/storage";
+import { TaskDocumentSchema, type TaskDocument } from "../../packages/agent/src/task-agent/types";
 
 // ─── 配置 ────────────────────────────────────────────────────────
 

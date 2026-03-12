@@ -23,8 +23,8 @@ import {
   queryL0Candidates,
   parseTaskMDContent,
   serializeTaskMDContent
-} from "../src/task-agent/storage";
-import type { TaskDocument } from "../src/task-agent/types";
+} from "../packages/agent/src/task-agent/storage";
+import type { TaskDocument } from "../packages/agent/src/task-agent/types";
 
 // ─── 统一标识前缀 ──────────────────────────────────────────────
 const TAG = "MIGRATE_0312";

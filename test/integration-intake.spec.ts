@@ -11,8 +11,8 @@ import {
   createExtractionConversation,
   extractFromConversation,
   buildTaskDocument,
-} from "../src/task-agent/intake";
-import { TaskDocumentSchema } from "../src/task-agent/types";
+} from "../packages/agent/src/task-agent/intake";
+import { TaskDocumentSchema } from "../packages/agent/src/task-agent/types";
 
 const HAS_LLM_KEY = !!(process.env.DASHSCOPE_API_KEY || process.env.OPENAI_API_KEY);
 

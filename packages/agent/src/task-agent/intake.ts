@@ -1,6 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { createInterface } from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
 import type { InteractionType, TaskDocument } from "./types";
 import { Conversation } from "@repo/core/llm";
 import { saveChatMessage } from "./storage";
@@ -114,6 +112,10 @@ const FOLLOWUP_SYSTEM_PROMPT = `你是一个友好的社交匹配助手，正在
 // ─── CLI 交互壳（仅本地开发调试使用）────────────────────────────
 
 export async function collectInitialTaskFromUser(): Promise<IntakeTaskResult | null> {
+  // 动态 import CLI 专用模块，避免 Next.js 打包时拉入 readline/process
+  const { stdin: input, stdout: output } = await import("node:process");
+  const { createInterface } = await import("node:readline/promises");
+
   if (!input.isTTY) {
     return null;
   }

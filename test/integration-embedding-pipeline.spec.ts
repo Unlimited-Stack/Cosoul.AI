@@ -20,11 +20,11 @@ import { randomUUID } from "node:crypto";
 import { db } from "@repo/core/db/client";
 import { users, personas, tasks, taskVectors } from "@repo/core/db/schema";
 import { eq, and } from "drizzle-orm";
-import { embedTaskFields } from "../src/task-agent/embedding";
-import { saveTaskVectors, readTaskVectors } from "../src/task-agent/retrieval";
-import { saveTaskMD, readTaskDocument } from "../src/task-agent/storage";
-import { processDraftingTask } from "../src/task-agent/dispatcher";
-import type { TaskDocument } from "../src/task-agent/types";
+import { embedTaskFields } from "../packages/agent/src/task-agent/embedding";
+import { saveTaskVectors, readTaskVectors } from "../packages/agent/src/task-agent/retrieval";
+import { saveTaskMD, readTaskDocument } from "../packages/agent/src/task-agent/storage";
+import { processDraftingTask } from "../packages/agent/src/task-agent/dispatcher";
+import type { TaskDocument } from "../packages/agent/src/task-agent/types";
 
 // ─── 统一标识前缀 ──────────────────────────────────────────────
 const TAG = "MIGRATE_0312";

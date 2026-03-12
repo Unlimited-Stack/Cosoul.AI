@@ -23,9 +23,9 @@ import { randomUUID } from "node:crypto";
 import { db } from "@repo/core/db/client";
 import { users, personas, tasks } from "@repo/core/db/schema";
 import { eq } from "drizzle-orm";
-import { startListener, stopListener, isListenerRunning } from "../src/task-agent/listener";
-import { saveTaskMD } from "../src/task-agent/storage";
-import type { TaskDocument } from "../src/task-agent/types";
+import { startListener, stopListener, isListenerRunning } from "../packages/agent/src/task-agent/listener";
+import { saveTaskMD } from "../packages/agent/src/task-agent/storage";
+import type { TaskDocument } from "../packages/agent/src/task-agent/types";
 
 // ─── 统一标识前缀 ──────────────────────────────────────────────
 const TAG = "MIGRATE_0312";

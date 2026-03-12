@@ -37,6 +37,10 @@ interface ChatMessage {
 export interface SoulChatSheetProps {
   visible: boolean;
   onClose: () => void;
+  /** 点击「创建人格」— 传入对话历史，由上层调 persona-agent 处理 */
+  onCreatePersona?: (conversationTurns: string[]) => void;
+  /** 创建中 loading 状态（上层控制） */
+  creating?: boolean;
 }
 
 // ─── 常量 ──────────────────────────────────────────────────────────
@@ -60,7 +64,7 @@ const WELCOME: ChatMessage = {
 
 // ─── 主组件 ────────────────────────────────────────────────────────
 
-export function SoulChatSheet({ visible, onClose }: SoulChatSheetProps) {
+export function SoulChatSheet({ visible, onClose, onCreatePersona, creating }: SoulChatSheetProps) {
   const { colors, isDark } = useTheme();
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
   const [input, setInput] = useState("");
@@ -124,6 +128,18 @@ export function SoulChatSheet({ visible, onClose }: SoulChatSheetProps) {
       }),
     ]).start(() => onClose());
   }, [bgOpacity, cardOpacity, cardScale, onClose]);
+
+  // ── 用户消息数 ≥1 时才显示创建按钮 ──
+  const userMsgCount = messages.filter((m) => m.role === "user").length;
+
+  // ── 点击「创建人格」将对话历史序列化后回调 ──
+  const handleCreate = useCallback(() => {
+    if (!onCreatePersona) return;
+    const turns = messages
+      .filter((m) => m.id !== "welcome")
+      .map((m) => `${m.role === "user" ? "用户" : "AI"}：${m.content}`);
+    onCreatePersona(turns);
+  }, [messages, onCreatePersona]);
 
   // ── 发送消息（占位回复，后续接 LLM） ──
   const handleSend = useCallback(() => {
@@ -245,29 +261,48 @@ export function SoulChatSheet({ visible, onClose }: SoulChatSheetProps) {
 
           {/* ── 输入栏 ── */}
           <View style={[styles.inputWrap, { borderTopColor: divider }]}>
-            <View style={[styles.inputRow, { backgroundColor: inputBg }]}>
-              <TextInput
-                style={[styles.input, { color: colors.text }]}
-                placeholder="描述你的人格..."
-                placeholderTextColor={colors.subtitle + "80"}
-                value={input}
-                onChangeText={setInput}
-                onSubmitEditing={handleSend}
-                returnKeyType="send"
-                multiline
-                blurOnSubmit
-              />
-              <TouchableOpacity
-                style={[
-                  styles.sendBtn,
-                  { backgroundColor: colors.accent },
-                  !input.trim() && styles.sendBtnDisabled,
-                ]}
-                onPress={handleSend}
-                disabled={!input.trim()}
-              >
-                <Text style={styles.sendText}>发送</Text>
-              </TouchableOpacity>
+            <View style={styles.inputRowOuter}>
+              {/* 左侧「创建人格」按钮 — 至少有 1 条用户消息时显示 */}
+              {userMsgCount >= 1 && onCreatePersona && (
+                <TouchableOpacity
+                  style={[
+                    styles.actionBtn,
+                    { backgroundColor: colors.accent },
+                    creating && styles.actionBtnDisabled,
+                  ]}
+                  onPress={handleCreate}
+                  disabled={creating}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.actionBtnText}>
+                    {creating ? "创建中..." : "✦ 创建人格"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              <View style={[styles.inputRow, { backgroundColor: inputBg }]}>
+                <TextInput
+                  style={[styles.input, { color: colors.text }]}
+                  placeholder="描述你的人格..."
+                  placeholderTextColor={colors.subtitle + "80"}
+                  value={input}
+                  onChangeText={setInput}
+                  onSubmitEditing={handleSend}
+                  returnKeyType="send"
+                  multiline
+                  blurOnSubmit
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.sendBtn,
+                    { backgroundColor: colors.accent },
+                    !input.trim() && styles.sendBtnDisabled,
+                  ]}
+                  onPress={handleSend}
+                  disabled={!input.trim()}
+                >
+                  <Text style={styles.sendText}>发送</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </Animated.View>
@@ -378,7 +413,28 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 12,
   },
+  inputRowOuter: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+  },
+  actionBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 20,
+    alignSelf: "flex-end",
+    marginBottom: 2,
+  },
+  actionBtnDisabled: {
+    opacity: 0.5,
+  },
+  actionBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
   inputRow: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "flex-end",
     borderRadius: 20,

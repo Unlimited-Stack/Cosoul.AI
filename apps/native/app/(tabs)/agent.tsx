@@ -27,6 +27,7 @@ export default function AgentTab() {
       onNavigateDebug={handleNavigateDebug}
       personaService={personaService}
       hideAddPersona
+      hideInlineControls
     />
   );
 }

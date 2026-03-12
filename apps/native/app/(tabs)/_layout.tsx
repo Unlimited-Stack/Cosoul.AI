@@ -37,6 +37,40 @@ export default function TabLayout() {
 
   // ── 灵动对话框状态 ──
   const [showSoulChat, setShowSoulChat] = useState(false);
+  const [creatingPersona, setCreatingPersona] = useState(false);
+
+  // ── 点击「创建人格」→ 调用已有的 POST /api/personas（与 AgentScreen 对齐） ──
+  const handleCreatePersona = useCallback(async (conversationTurns: string[]) => {
+    setCreatingPersona(true);
+    try {
+      const config = getPersonaPlatformConfig();
+      const baseUrl = config.proxyBaseUrl ?? "/api";
+
+      // 从对话中提取人格信息（与 AgentScreen createPersona 参数对齐）
+      const userTurns = conversationTurns
+        .filter((t) => t.startsWith("用户："))
+        .map((t) => t.replace("用户：", "").trim());
+      const firstMsg = userTurns[0] ?? "新人格";
+      const name = firstMsg.length > 20 ? firstMsg.slice(0, 20) + "…" : firstMsg;
+      const bio = userTurns.join("\n");
+
+      // 直接走已有的人格创建接口
+      const res = await fetch(`${baseUrl}/personas`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, bio, coreIdentity: bio, preferences: "" }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      console.log("[SoulChat] 人格创建成功:", data);
+      // 创建成功 → 关闭对话框
+      setShowSoulChat(false);
+    } catch (err) {
+      console.warn("[SoulChat] 创建人格失败:", err);
+    } finally {
+      setCreatingPersona(false);
+    }
+  }, []);
 
   // ── 长按 Agent Tab 时加载人格列表并弹出浮层 ──
   const handleTabLongPress = useCallback(async (routeName: string) => {
@@ -132,6 +166,8 @@ export default function TabLayout() {
       <SoulChatSheet
         visible={showSoulChat}
         onClose={handleCloseSoulChat}
+        onCreatePersona={handleCreatePersona}
+        creating={creatingPersona}
       />
     </View>
   );

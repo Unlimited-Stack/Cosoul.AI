@@ -16,6 +16,12 @@ export default function AppLayout() {
         <Stack.Screen name="settings" options={{ headerShown: false, presentation: "modal" }} />
         {/* Agent 调试页：从 Agent 主页扳手图标进入，modal 形式展示 */}
         <Stack.Screen name="agent-debug" options={{ headerShown: false, presentation: "modal" }} />
+        {/* 任务对话页：从人格操作浮层进入 */}
+        <Stack.Screen name="agent-task-chat" options={{ headerShown: false }} />
+        {/* 灵魂对话页 */}
+        <Stack.Screen name="agent-soul-chat" options={{ headerShown: false }} />
+        {/* 任务表单页 */}
+        <Stack.Screen name="agent-task-form" options={{ headerShown: false }} />
       </Stack>
     </ThemeProvider>
   );

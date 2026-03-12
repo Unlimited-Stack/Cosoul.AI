@@ -9,6 +9,7 @@ export default defineConfig({
     "src/llm/server.ts",
     "src/persona/proxy.ts",
     "src/persona/service.ts",
+    "src/task/proxy.ts",
   ],
   format: ["cjs", "esm"],
   dts: true,

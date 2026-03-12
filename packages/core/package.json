@@ -40,6 +40,11 @@
       "import": "./dist/persona/service.mjs",
       "require": "./dist/persona/service.js",
       "types": "./dist/persona/service.d.ts"
+    },
+    "./task": {
+      "import": "./dist/task/proxy.mjs",
+      "require": "./dist/task/proxy.js",
+      "types": "./dist/task/proxy.d.ts"
     }
   },
   "scripts": {

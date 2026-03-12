@@ -32,4 +32,4 @@ export {
 export { CardsScreen } from "./screens/CardsScreen";
 export { ProfileScreen, type ProfileScreenProps } from "./screens/ProfileScreen";
 export { SettingsScreen, type SettingsScreenProps } from "./screens/SettingsScreen";
-export { TaskChatScreen, type TaskChatScreenProps } from "./screens/TaskChatScreen";
+export { TaskChatScreen, type TaskChatScreenProps, type TaskServiceLike } from "./screens/TaskChatScreen";
