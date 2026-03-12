@@ -1,18 +1,15 @@
 /**
- * Cosoul.AI — Drizzle ORM 数据库表定义（10 张核心表）
+ * Cosoul.AI — Drizzle ORM 数据库表定义（8 张核心表）
  *
  * 表一览：
  *  1. users           — 用户账号
- *  2. personas        — AI 分身（一用户多分身）
- *  3. persona_profiles — 分身偏好档案（User.md 结构化派生）
- *  4. tasks           — 任务（含 FSM 状态机）
- *  5. task_summaries  — 任务摘要（可跨任务复用）
- *  6. task_vectors    — Embedding 向量索引（pgvector）
- *  7. contacts        — 联系人（分身级别好友关系）
- *  8. handshake_logs  — 握手日志
- *  9. chat_messages   — 聊天消息（四种模式）
- * 10. idempotency_keys — 幂等控制（TTL 7 天）
- * 11. memory_summaries — 记忆摘要（参与 RAG）
+ *  2. personas        — AI 分身（一用户多分身，含 profile_text / preferences）
+ *  3. tasks           — 任务（含 FSM 状态机）
+ *  4. task_vectors    — Embedding 向量索引（pgvector）
+ *  5. contacts        — 联系人（分身级别好友关系）
+ *  6. handshake_logs  — 握手日志
+ *  7. chat_messages   — 聊天消息（intake / revise / agent 多轮对话）
+ *  8. idempotency_keys — 幂等控制（TTL 7 天）
  */
 
 import {
@@ -75,6 +72,8 @@ export const personas = pgTable(
     name: varchar("name", { length: 100 }).notNull(),
     avatar: text("avatar"),
     bio: text("bio"),
+    profileText: text("profile_text"), // Soul.md 全文
+    preferences: jsonb("preferences").default({}), // 结构化偏好
     settings: jsonb("settings").default({}),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -88,19 +87,7 @@ export const personas = pgTable(
   ]
 );
 
-// ─── 3. persona_profiles ─────────────────────────────────────────
-export const personaProfiles = pgTable("persona_profiles", {
-  personaId: uuid("persona_id")
-    .primaryKey()
-    .references(() => personas.personaId, { onDelete: "cascade" }),
-  profileText: text("profile_text"), // User.md 全文
-  preferences: jsonb("preferences").default({}), // 结构化偏好
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
-
-// ─── 4. tasks ─────────────────────────────────────────────────────
+// ─── 3. tasks ─────────────────────────────────────────────────────
 export const tasks = pgTable(
   "tasks",
   {
@@ -135,19 +122,7 @@ export const tasks = pgTable(
   ]
 );
 
-// ─── 5. task_summaries ────────────────────────────────────────────
-export const taskSummaries = pgTable("task_summaries", {
-  taskId: uuid("task_id")
-    .primaryKey()
-    .references(() => tasks.taskId, { onDelete: "cascade" }),
-  summaryText: text("summary_text"),
-  tags: jsonb("tags").default([]), // 标签数组，用于跨任务复用查询
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
-
-// ─── 6. task_vectors ──────────────────────────────────────────────
+// ─── 4. task_vectors ──────────────────────────────────────────────
 // pgvector HNSW 索引在迁移 SQL 中手动创建（Drizzle 不直接支持 HNSW）
 export const taskVectors = pgTable(
   "task_vectors",
@@ -168,7 +143,7 @@ export const taskVectors = pgTable(
   ]
 );
 
-// ─── 7. contacts ──────────────────────────────────────────────────
+// ─── 5. contacts ──────────────────────────────────────────────────
 export const contacts = pgTable(
   "contacts",
   {
@@ -192,7 +167,7 @@ export const contacts = pgTable(
   ]
 );
 
-// ─── 8. handshake_logs ────────────────────────────────────────────
+// ─── 6. handshake_logs ────────────────────────────────────────────
 export const handshakeLogs = pgTable(
   "handshake_logs",
   {
@@ -211,7 +186,7 @@ export const handshakeLogs = pgTable(
   ]
 );
 
-// ─── 9. chat_messages ─────────────────────────────────────────────
+// ─── 7. chat_messages ─────────────────────────────────────────────
 export const chatMessages = pgTable(
   "chat_messages",
   {
@@ -236,7 +211,7 @@ export const chatMessages = pgTable(
   ]
 );
 
-// ─── 10. idempotency_keys ─────────────────────────────────────────
+// ─── 8. idempotency_keys ─────────────────────────────────────────
 // TTL 7 天：通过 PostgreSQL pg_cron 或应用层定期清理 created_at < NOW() - 7 days
 export const idempotencyKeys = pgTable("idempotency_keys", {
   key: varchar("key", { length: 255 }).primaryKey(),
@@ -246,25 +221,3 @@ export const idempotencyKeys = pgTable("idempotency_keys", {
     .defaultNow(),
 });
 
-// ─── 11. memory_summaries ─────────────────────────────────────────
-export const memorySummaries = pgTable(
-  "memory_summaries",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    personaId: uuid("persona_id")
-      .notNull()
-      .references(() => personas.personaId, { onDelete: "cascade" }),
-    taskId: uuid("task_id").references(() => tasks.taskId, {
-      onDelete: "set null",
-    }),
-    summaryText: text("summary_text").notNull(),
-    sourceLogId: varchar("source_log_id", { length: 255 }),
-    turnCount: integer("turn_count"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    index("idx_memory_persona").on(table.personaId),
-  ]
-);

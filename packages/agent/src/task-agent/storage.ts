@@ -1,7 +1,7 @@
 import { mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { db } from "@repo/core/db/client";
-import { handshakeLogs, idempotencyKeys, tasks } from "@repo/core/db/schema";
+import { chatMessages, handshakeLogs, idempotencyKeys, tasks } from "@repo/core/db/schema";
 import { and, desc, eq, inArray, lt, ne } from "drizzle-orm";
 import type {
   ErrorCode,
@@ -277,6 +277,70 @@ export async function readTaskDocument(taskId: string): Promise<TaskDocument> {
     throw new Error(`E_TASK_NOT_FOUND: ${taskId}`);
   }
   return dbRowToTaskDocument(rows[0]);
+}
+
+/**
+ * 从 task.md 文件读取 TaskDocument。
+ * 用于需要读取文件系统版本的场景（如人工编辑后的 sync）。
+ */
+export async function readTaskFromMD(taskId: string): Promise<TaskDocument> {
+  const filePath = resolveTaskPath(taskId);
+  const content = await readFile(filePath, "utf8");
+  return parseTaskMDContent(content);
+}
+
+export interface SyncFromMDResult {
+  task: TaskDocument;
+  changedFields: string[];
+}
+
+/**
+ * 从 task.md 文件回写 DB：读取 task.md → 对比 DB → 更新差异字段。
+ * 典型场景：人工编辑 task.md 后调用此函数同步回 DB。
+ * 返回更新后的 TaskDocument 和变更字段列表，调用方可据此决定是否触发 re-embedding。
+ */
+export async function syncTaskFromMD(taskId: string): Promise<SyncFromMDResult> {
+  const mdTask = await readTaskFromMD(taskId);
+  const dbTask = await readTaskDocument(taskId);
+
+  // 对比 body 字段差异
+  const changedFields: string[] = [];
+  const bodyKeys = ["rawDescription", "targetActivity", "targetVibe", "detailedPlan"] as const;
+  for (const key of bodyKeys) {
+    if (mdTask.body[key] !== dbTask.body[key]) {
+      changedFields.push(key);
+    }
+  }
+
+  // 对比 frontmatter 中可编辑字段
+  if (mdTask.frontmatter.interaction_type !== dbTask.frontmatter.interaction_type) {
+    changedFields.push("interaction_type");
+  }
+
+  if (changedFields.length === 0) {
+    return { task: dbTask, changedFields };
+  }
+
+  // 用 md 版本的 body + interaction_type 覆盖 DB，保留 DB 的 version/status 等元数据
+  const merged: TaskDocument = {
+    frontmatter: {
+      ...dbTask.frontmatter,
+      interaction_type: mdTask.frontmatter.interaction_type,
+      updated_at: new Date().toISOString(),
+      version: dbTask.frontmatter.version + 1,
+    },
+    body: mdTask.body,
+  };
+
+  await db
+    .update(tasks)
+    .set({
+      ...taskDocumentToDbValues(merged),
+      version: merged.frontmatter.version,
+    })
+    .where(eq(tasks.taskId, taskId));
+
+  return { task: merged, changedFields };
 }
 
 export async function listTasksByStatuses(statuses: TaskStatus[]): Promise<TaskDocument[]> {
@@ -626,6 +690,37 @@ export async function resumeFailedOrTimeoutTask(taskId: string, triggerBy: strin
   return result;
 }
 
+// ─── Chat Messages（intake / revise 多轮对话持久化）──────────────
+
+export interface ChatMessageInput {
+  taskId: string;
+  personaId: string;
+  senderType: "human" | "agent";
+  senderId: string;
+  content: string;
+  metadata?: Record<string, unknown>;
+}
+
+export async function saveChatMessage(msg: ChatMessageInput): Promise<string> {
+  const [row] = await db.insert(chatMessages).values({
+    taskId: msg.taskId,
+    personaId: msg.personaId,
+    senderType: msg.senderType,
+    senderId: msg.senderId,
+    content: msg.content,
+    metadata: msg.metadata ?? {},
+  }).returning({ id: chatMessages.id });
+  return row.id;
+}
+
+export async function listChatMessages(taskId: string) {
+  return db
+    .select()
+    .from(chatMessages)
+    .where(eq(chatMessages.taskId, taskId))
+    .orderBy(chatMessages.createdAt);
+}
+
 // ─── Negotiation Session Storage（JSONL 文件存储）─────────────────
 
 export async function upsertNegotiationSession(session: NegotiationSession): Promise<void> {
@@ -709,18 +804,39 @@ export function parseTaskMDContent(content: string): TaskDocument {
 
   const yamlText = frontmatterMatch[1];
   const bodyText = frontmatterMatch[2].trim();
-  const frontmatter = parseSimpleYamlObject(yamlText);
-  const body = parseTaskBody(bodyText);
+  const yaml = parseSimpleYamlObject(yamlText);
 
-  return parseTaskDocument({ frontmatter, body });
+  // body 字段现在从 YAML 中读取，只有 detailedPlan 保留在 markdown body
+  const rawDescription = String(yaml.raw_description ?? "");
+  const targetActivity = String(yaml.target_activity ?? "");
+  const targetVibe = String(yaml.target_vibe ?? "");
+
+  // 从 YAML 中移除 body 字段，剩余的才是 frontmatter
+  delete yaml.raw_description;
+  delete yaml.target_activity;
+  delete yaml.target_vibe;
+
+  const detailedMatch = bodyText.match(/### 需求详情\s*([\s\S]*)$/);
+  const detailedPlan = detailedMatch ? detailedMatch[1].trim() : "";
+  const cleanPlan = detailedPlan === "（待 AI 生成）" ? "" : detailedPlan;
+
+  return parseTaskDocument({
+    frontmatter: yaml,
+    body: { rawDescription, targetActivity, targetVibe, detailedPlan: cleanPlan },
+  });
 }
 
 export function serializeTaskMDContent(task: TaskDocument): string {
-  const frontmatterYaml = serializeSimpleYamlObject(task.frontmatter);
+  const yamlLines = [
+    ...serializeSimpleYamlLines(task.frontmatter),
+    `raw_description: ${quoteYaml(task.body.rawDescription)}`,
+    `target_activity: ${quoteYaml(task.body.targetActivity)}`,
+    `target_vibe: ${quoteYaml(task.body.targetVibe)}`,
+  ];
   const detailedSection = task.body.detailedPlan
     ? `\n\n### 需求详情\n${task.body.detailedPlan}`
     : "\n\n### 需求详情\n（待 AI 生成）";
-  return `---\n${frontmatterYaml}\n---\n\n### 原始描述\n${task.body.rawDescription}\n\n### 靶向映射\n<Target_Activity>${task.body.targetActivity}</Target_Activity>\n<Target_Vibe>${task.body.targetVibe}</Target_Vibe>${detailedSection}\n`;
+  return `---\n${yamlLines.join("\n")}\n---${detailedSection}\n`;
 }
 
 // ─── 内部工具函数 ─────────────────────────────────────────────────
@@ -744,9 +860,14 @@ async function listAllTaskRecords(): Promise<TaskRecord[]> {
   }));
 }
 
-/** 派生层同步占位实现（向量索引由独立 embedding pipeline 负责） */
-async function syncDerivedLayers(_task: TaskDocument): Promise<void> {
-  // 向量化由外部 embedding pipeline 在写入 task_vectors 表后完成
+/**
+ * 派生层同步：将 TaskDocument 写出为 task.md 文件。
+ * task.md 既是可观测副本，也可被人工编辑后通过 syncTaskFromMD 回流。
+ */
+async function syncDerivedLayers(task: TaskDocument): Promise<void> {
+  const filePath = resolveTaskPath(task.frontmatter.task_id);
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, serializeTaskMDContent(task), "utf8");
 }
 
 async function readAllSessions(taskId: string): Promise<NegotiationSession[]> {
@@ -868,30 +989,6 @@ function toTaskFolderName(taskId: string): string {
   return `task_${taskId.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
 }
 
-function parseTaskBody(bodyText: string): {
-  rawDescription: string;
-  targetActivity: string;
-  targetVibe: string;
-  detailedPlan: string;
-} {
-  const rawSection = bodyText.match(/### 原始描述\s*([\s\S]*?)\n### 靶向映射/);
-  const activityMatch = bodyText.match(/<Target_Activity>([\s\S]*?)<\/Target_Activity>/);
-  const vibeMatch = bodyText.match(/<Target_Vibe>([\s\S]*?)<\/Target_Vibe>/);
-
-  if (!rawSection || !activityMatch || !vibeMatch) {
-    throw new Error("E_TASK_BODY_INVALID: required sections are missing");
-  }
-
-  const rawDescription = rawSection[1].trim();
-  const targetActivity = activityMatch[1].trim();
-  const targetVibe = vibeMatch[1].trim();
-  const detailedMatch = bodyText.match(/### 需求详情\s*([\s\S]*)$/);
-  const detailedPlan = detailedMatch ? detailedMatch[1].trim() : "";
-  const cleanPlan = detailedPlan === "（待 AI 生成）" ? "" : detailedPlan;
-
-  return { rawDescription, targetActivity, targetVibe, detailedPlan: cleanPlan };
-}
-
 function parseSimpleYamlObject(yamlText: string): Record<string, unknown> {
   const raw: Record<string, unknown> = {};
   for (const line of yamlText.split("\n").map((l) => l.trim())) {
@@ -928,7 +1025,7 @@ function stripYamlQuotes(v: string): string {
   return v;
 }
 
-function serializeSimpleYamlObject(frontmatter: TaskFrontmatter): string {
+function serializeSimpleYamlLines(frontmatter: TaskFrontmatter): string[] {
   return [
     `task_id: ${quoteYaml(frontmatter.task_id)}`,
     `status: ${quoteYaml(frontmatter.status)}`,
@@ -939,8 +1036,8 @@ function serializeSimpleYamlObject(frontmatter: TaskFrontmatter): string {
     `updated_at: ${quoteYaml(frontmatter.updated_at)}`,
     `version: ${frontmatter.version}`,
     `pending_sync: ${frontmatter.pending_sync ? "true" : "false"}`,
-    `hidden: ${frontmatter.hidden ? "true" : "false"}`
-  ].join("\n");
+    `hidden: ${frontmatter.hidden ? "true" : "false"}`,
+  ];
 }
 
 function quoteYaml(value: string): string {

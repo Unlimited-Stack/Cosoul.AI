@@ -19,14 +19,11 @@ import * as schema from "./schema";
 const {
   users,
   personas,
-  personaProfiles,
   tasks,
-  taskSummaries,
   contacts,
   handshakeLogs,
   chatMessages,
   idempotencyKeys,
-  memorySummaries,
 } = schema;
 
 const DATABASE_URL =
@@ -71,14 +68,11 @@ async function seed() {
 
   console.log("[seed] 清空旧数据...");
   // 按外键依赖倒序删除
-  await db.delete(memorySummaries);
   await db.delete(idempotencyKeys);
   await db.delete(chatMessages);
   await db.delete(handshakeLogs);
   await db.delete(contacts);
-  await db.delete(taskSummaries);
   await db.delete(tasks);
-  await db.delete(personaProfiles);
   await db.delete(personas);
   await db.delete(users);
 
@@ -115,6 +109,8 @@ async function seed() {
       name: "社交达人 Alice",
       avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=alice-social",
       bio: "喜欢结交新朋友，热爱聚会和社交活动。外向开朗，善于破冰。",
+      profileText: "# Alice 社交达人\n\n## 性格\n外向、热情、善于沟通\n\n## 偏好\n- 喜欢线下活动（聚餐、户外运动、桌游）\n- 偏好 20-35 岁的同龄人\n- 对体育和旅行感兴趣\n\n## 雷区\n- 不喜欢过于严肃的商务场合\n- 避免宗教和政治话题",
+      preferences: { age_range: "20-35", interests: ["聚餐", "户外", "桌游", "旅行"], deal_breakers: ["宗教推销", "传销"] },
       settings: { high_match_mode: false, language: "zh-CN" },
     },
     {
@@ -123,6 +119,8 @@ async function seed() {
       name: "技术宅 Alice",
       avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=alice-tech",
       bio: "全栈工程师，对 AI 和分布式系统感兴趣。更喜欢线上技术交流。",
+      profileText: "# Alice 技术宅\n\n## 技术栈\nTypeScript, React, Node.js, PostgreSQL, AI/LLM\n\n## 偏好\n- 线上技术交流为主\n- 对开源项目感兴趣\n- 喜欢深度技术讨论\n\n## 雷区\n- 不喜欢纯营销性质的技术活动",
+      preferences: { tech_stack: ["TypeScript", "React", "Node.js", "AI"], interaction: "online", interests: ["开源", "AI", "架构"] },
       settings: { high_match_mode: false, language: "zh-CN" },
     },
     {
@@ -131,6 +129,8 @@ async function seed() {
       name: "健身搭子 Alice",
       avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=alice-fitness",
       bio: "每周健身 4 次，擅长瑜伽和力量训练。找健身伙伴一起打卡。",
+      profileText: "# Alice 健身搭子\n\n## 运动习惯\n每周 4 次，上午时段\n\n## 偏好\n- 瑜伽、力量训练、HIIT\n- 找同城健身伙伴\n- 偏好有健身基础的搭子",
+      preferences: { sports: ["瑜伽", "力量训练", "HIIT"], frequency: "4次/周", time_slot: "上午" },
       settings: { high_match_mode: true, language: "zh-CN" },
     },
     // Bob 的 2 个分身
@@ -140,6 +140,8 @@ async function seed() {
       name: "商务精英 Bob",
       avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=bob-biz",
       bio: "连续创业者，专注 SaaS 和 AI 赛道。寻找联合创始人和投资人。",
+      profileText: "# Bob 商务精英\n\n## 背景\n连续创业者，3 次创业经历\n\n## 偏好\n- 寻找 AI/SaaS 领域的联合创始人\n- 对技术驱动型产品感兴趣\n- 偏好有创业经验的合作伙伴",
+      preferences: { industry: ["AI", "SaaS", "企业服务"], looking_for: ["联合创始人", "投资人", "技术合伙人"] },
       settings: { high_match_mode: true, language: "zh-CN" },
     },
     {
@@ -148,6 +150,8 @@ async function seed() {
       name: "美食探店 Bob",
       avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=bob-food",
       bio: "资深吃货，每周至少探 2 家新店。偏爱日料和川菜。",
+      profileText: "# Bob 美食探店\n\n## 口味\n偏爱日料和川菜，也喜欢尝试新菜系\n\n## 偏好\n- 人均 100-300 的中高端餐厅\n- 注重用餐环境和服务\n- 喜欢和会拍照的朋友一起",
+      preferences: { cuisines: ["日料", "川菜", "法餐"], budget: "100-300", vibe: "精致" },
       settings: { high_match_mode: false, language: "zh-CN" },
     },
     // Carol 的 2 个分身
@@ -157,6 +161,8 @@ async function seed() {
       name: "旅行达人 Carol",
       avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=carol-travel",
       bio: "数字游民，已去过 30+ 国家。偏爱小众目的地和深度文化体验。",
+      profileText: "# Carol 旅行达人\n\n## 旅行风格\n深度文化体验，小众目的地\n\n## 偏好\n- 不喜欢跟团游\n- 偏爱自由行和半自助\n- 对当地美食和历史感兴趣",
+      preferences: { style: "自由行", interests: ["文化体验", "当地美食", "历史古迹"], visited: "30+ 国家" },
       settings: { high_match_mode: false, language: "zh-CN" },
     },
     {
@@ -165,85 +171,13 @@ async function seed() {
       name: "音乐爱好者 Carol",
       avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=carol-music",
       bio: "独立音乐人，弹吉他、写歌。寻找志同道合的乐队成员。",
+      profileText: "# Carol 音乐爱好者\n\n## 音乐风格\n独立摇滚、民谣、后摇\n\n## 技能\n吉他（8年）、词曲创作\n\n## 偏好\n- 找鼓手和贝斯手组乐队\n- 喜欢 Livehouse 演出\n- 对录音制作感兴趣",
+      preferences: { genres: ["独立摇滚", "民谣", "后摇"], instruments: ["吉他"], looking_for: ["鼓手", "贝斯手"] },
       settings: { high_match_mode: false, language: "zh-CN" },
     },
   ]);
 
-  // ─── 3. 分身偏好档案（User.md 派生）──────────────────────────
-  console.log("[seed] 插入分身偏好档案...");
-  await db.insert(personaProfiles).values([
-    {
-      personaId: PERSONA_ALICE_SOCIAL,
-      profileText:
-        "# Alice 社交达人\n\n## 性格\n外向、热情、善于沟通\n\n## 偏好\n- 喜欢线下活动（聚餐、户外运动、桌游）\n- 偏好 20-35 岁的同龄人\n- 对体育和旅行感兴趣\n\n## 雷区\n- 不喜欢过于严肃的商务场合\n- 避免宗教和政治话题",
-      preferences: {
-        age_range: "20-35",
-        interests: ["聚餐", "户外", "桌游", "旅行"],
-        deal_breakers: ["宗教推销", "传销"],
-      },
-    },
-    {
-      personaId: PERSONA_ALICE_TECH,
-      profileText:
-        "# Alice 技术宅\n\n## 技术栈\nTypeScript, React, Node.js, PostgreSQL, AI/LLM\n\n## 偏好\n- 线上技术交流为主\n- 对开源项目感兴趣\n- 喜欢深度技术讨论\n\n## 雷区\n- 不喜欢纯营销性质的技术活动",
-      preferences: {
-        tech_stack: ["TypeScript", "React", "Node.js", "AI"],
-        interaction: "online",
-        interests: ["开源", "AI", "架构"],
-      },
-    },
-    {
-      personaId: PERSONA_ALICE_FITNESS,
-      profileText:
-        "# Alice 健身搭子\n\n## 运动习惯\n每周 4 次，上午时段\n\n## 偏好\n- 瑜伽、力量训练、HIIT\n- 找同城健身伙伴\n- 偏好有健身基础的搭子",
-      preferences: {
-        sports: ["瑜伽", "力量训练", "HIIT"],
-        frequency: "4次/周",
-        time_slot: "上午",
-      },
-    },
-    {
-      personaId: PERSONA_BOB_BUSINESS,
-      profileText:
-        "# Bob 商务精英\n\n## 背景\n连续创业者，3 次创业经历\n\n## 偏好\n- 寻找 AI/SaaS 领域的联合创始人\n- 对技术驱动型产品感兴趣\n- 偏好有创业经验的合作伙伴",
-      preferences: {
-        industry: ["AI", "SaaS", "企业服务"],
-        looking_for: ["联合创始人", "投资人", "技术合伙人"],
-      },
-    },
-    {
-      personaId: PERSONA_BOB_FOODIE,
-      profileText:
-        "# Bob 美食探店\n\n## 口味\n偏爱日料和川菜，也喜欢尝试新菜系\n\n## 偏好\n- 人均 100-300 的中高端餐厅\n- 注重用餐环境和服务\n- 喜欢和会拍照的朋友一起",
-      preferences: {
-        cuisines: ["日料", "川菜", "法餐"],
-        budget: "100-300",
-        vibe: "精致",
-      },
-    },
-    {
-      personaId: PERSONA_CAROL_TRAVEL,
-      profileText:
-        "# Carol 旅行达人\n\n## 旅行风格\n深度文化体验，小众目的地\n\n## 偏好\n- 不喜欢跟团游\n- 偏爱自由行和半自助\n- 对当地美食和历史感兴趣",
-      preferences: {
-        style: "自由行",
-        interests: ["文化体验", "当地美食", "历史古迹"],
-        visited: "30+ 国家",
-      },
-    },
-    {
-      personaId: PERSONA_CAROL_MUSIC,
-      profileText:
-        "# Carol 音乐爱好者\n\n## 音乐风格\n独立摇滚、民谣、后摇\n\n## 技能\n吉他（8年）、词曲创作\n\n## 偏好\n- 找鼓手和贝斯手组乐队\n- 喜欢 Livehouse 演出\n- 对录音制作感兴趣",
-      preferences: {
-        genres: ["独立摇滚", "民谣", "后摇"],
-        instruments: ["吉他"],
-        looking_for: ["鼓手", "贝斯手"],
-      },
-    },
-  ]);
-
-  // ─── 4. 任务（覆盖 FSM 全部状态）─────────────────────────────
+  // ─── 3. 任务（覆盖 FSM 全部状态）─────────────────────────────
   console.log("[seed] 插入任务（覆盖所有 FSM 状态）...");
   await db.insert(tasks).values([
     // Drafting — Alice 社交达人刚发布的新需求
@@ -379,42 +313,7 @@ async function seed() {
     },
   ]);
 
-  // ─── 5. 任务摘要 ──────────────────────────────────────────────
-  console.log("[seed] 插入任务摘要...");
-  await db.insert(taskSummaries).values([
-    {
-      taskId: TASK_ALICE_SOCIAL_2,
-      summaryText:
-        "Alice 想找剧本杀玩家，偏好硬核推理本，线下线上均可，每两周一次，4-6 人。",
-      tags: ["剧本杀", "推理", "社交", "线下"],
-    },
-    {
-      taskId: TASK_ALICE_TECH_1,
-      summaryText:
-        "Alice 技术宅找 React Native 开发者，一起做开源旅行 App，Expo 技术栈，2 个月 MVP。",
-      tags: ["开源", "React Native", "Expo", "旅行App"],
-    },
-    {
-      taskId: TASK_BOB_BUSINESS_1,
-      summaryText:
-        "Bob 找到了技术合伙人，项目方向 AI 社交匹配平台，已达成合作意向。",
-      tags: ["AI", "创业", "合伙人", "已完成"],
-    },
-    {
-      taskId: TASK_CAROL_TRAVEL_1,
-      summaryText:
-        "Carol 五一日本关西自由行，7天6晚，大阪-京都-奈良-神户，找随和旅伴。",
-      tags: ["日本", "自由行", "关西", "五一"],
-    },
-    {
-      taskId: TASK_CAROL_MUSIC_1,
-      summaryText:
-        "Carol 找鼓手贝斯手组乐队，独立摇滚/后摇风格，朝阳区排练，每周 1-2 次。",
-      tags: ["乐队", "独立摇滚", "后摇", "鼓手", "贝斯手"],
-    },
-  ]);
-
-  // ─── 6. 联系人 ────────────────────────────────────────────────
+  // ─── 4. 联系人 ────────────────────────────────────────────────
   console.log("[seed] 插入联系人...");
   await db.insert(contacts).values([
     // Bob 商务精英 ↔ Alice 技术宅（通过创业合伙任务匹配成功）
@@ -459,7 +358,7 @@ async function seed() {
     },
   ]);
 
-  // ─── 7. 握手日志 ──────────────────────────────────────────────
+  // ─── 5. 握手日志 ──────────────────────────────────────────────
   console.log("[seed] 插入握手日志...");
   await db.insert(handshakeLogs).values([
     // Alice 技术宅的任务 ↔ Carol 旅行达人 正在谈判
@@ -535,7 +434,7 @@ async function seed() {
     },
   ]);
 
-  // ─── 8. 聊天消息（覆盖四种交互模式）──────────────────────────
+  // ─── 6. 聊天消息（覆盖四种交互模式）──────────────────────────
   console.log("[seed] 插入聊天消息（四种交互模式）...");
   await db.insert(chatMessages).values([
     // ── 模式 1：人 - 人（Alice 社交达人 ↔ Bob 美食探店）──
@@ -676,7 +575,7 @@ async function seed() {
     },
   ]);
 
-  // ─── 9. 幂等记录 ──────────────────────────────────────────────
+  // ─── 7. 幂等记录 ──────────────────────────────────────────────
   console.log("[seed] 插入幂等记录...");
   await db.insert(idempotencyKeys).values([
     {
@@ -689,55 +588,15 @@ async function seed() {
     },
   ]);
 
-  // ─── 10. 记忆摘要 ─────────────────────────────────────────────
-  console.log("[seed] 插入记忆摘要...");
-  await db.insert(memorySummaries).values([
-    {
-      personaId: PERSONA_ALICE_SOCIAL,
-      taskId: TASK_ALICE_SOCIAL_2,
-      summaryText:
-        "Alice 社交达人与 Agent 进行了 8 轮对话，确认了剧本杀需求：偏好硬核推理本，4-6 人，每两周一次。Alice 提到自己玩过「年轮」和「你好，旧时光」，对机制本兴趣不大。Agent 建议增加「可接受情感本」以扩大匹配范围，Alice 同意。",
-      sourceLogId: "2026-03-08-chat.md",
-      turnCount: 8,
-    },
-    {
-      personaId: PERSONA_ALICE_TECH,
-      taskId: TASK_ALICE_TECH_1,
-      summaryText:
-        "Alice 技术宅发布了开源旅行 App 项目需求。核心技术栈 Expo + React Native，计划 2 个月 MVP。Agent 在 L1 检索中匹配到 Carol 旅行达人（相似度 0.72），目前在 L2 谈判中。Carol 的 Agent 回复说 Carol 更擅长设计而非开发，待确认合作方式。",
-      sourceLogId: "2026-03-09-chat.md",
-      turnCount: 12,
-    },
-    {
-      personaId: PERSONA_BOB_BUSINESS,
-      taskId: TASK_BOB_BUSINESS_1,
-      summaryText:
-        "Bob 商务精英成功匹配到技术合伙人 Alice 技术宅。匹配过程：L0 过滤掉线下专属任务，L1 语义匹配分数 0.81（技术合伙需求高度吻合），L2 Agent 谈判 3 轮后双方 ACCEPT。关键匹配点：Alice 的全栈技术能力 + 对 AI 的兴趣。Bob 确认满意并发送好友申请。",
-      sourceLogId: "2026-03-07-chat.md",
-      turnCount: 15,
-    },
-    {
-      personaId: PERSONA_CAROL_TRAVEL,
-      taskId: TASK_CAROL_TRAVEL_1,
-      summaryText:
-        "Carol 发布五一日本关西自由行需求，通过 Intake 对话确认了详细行程：大阪入-京都-奈良-神户-大阪出，7 天 6 晚。偏好民宿而非酒店，对寺庙和当地小吃特别感兴趣。预算 1.5 万/人。Agent 正在搜索匹配中。",
-      sourceLogId: "2026-03-09-chat.md",
-      turnCount: 10,
-    },
-  ]);
-
   console.log("[seed] ✅ 全部数据插入完成！");
   console.log("[seed] 统计：");
   console.log("  - 用户：3");
-  console.log("  - AI 分身：7");
-  console.log("  - 分身偏好档案：7");
+  console.log("  - AI 分身（含 profile）：7");
   console.log("  - 任务（覆盖全部 FSM 状态）：10");
-  console.log("  - 任务摘要：5");
   console.log("  - 联系人关系：5");
   console.log("  - 握手日志：4");
   console.log("  - 聊天消息（四种模式 + Intake）：15");
   console.log("  - 幂等记录：2");
-  console.log("  - 记忆摘要：4");
 
   await pool.end();
 }

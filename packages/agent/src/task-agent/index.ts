@@ -1,8 +1,10 @@
 import type { PersonaContext } from "../persona-agent/types";
-import { buildTaskDocument, extractFromConversation } from "./intake";
+import { buildTaskDocument, createExtractionConversation, extractFromConversation } from "./intake";
 import { runTaskStep, runTaskStepById, saveIntakeResult } from "./task_loop";
 import { readTaskDocument, saveTaskMD, transitionTaskStatus } from "./storage";
 import { buildPromptContext } from "./context";
+import { embedTaskFields } from "./embedding";
+import { saveTaskVectors } from "./retrieval";
 import type { TaskDocument, TaskStatus } from "./types";
 
 export type { TaskStepResult } from "./task_loop";
@@ -101,12 +103,27 @@ export async function createTaskAgentFromIntake(
   conversationTurns: string[],
   personaContext: PersonaContext
 ): Promise<TaskAgent> {
-  const extracted = await extractFromConversation(conversationTurns.join("\n"));
-  const task = buildTaskDocument(extracted);
+  const conv = createExtractionConversation();
+  const result = await extractFromConversation(conv, conversationTurns.join("\n"));
+  const task = buildTaskDocument(result.fields);
 
   const timestamp = new Date().toISOString();
   await saveTaskMD(task, { personaId: personaContext.personaId });
   await saveIntakeResult(task, conversationTurns, timestamp);
+
+  // Intake 阶段直接完成 embedding，避免依赖后续 processDraftingTask
+  if (task.body.targetActivity && task.body.targetVibe && task.body.rawDescription) {
+    const embResult = await embedTaskFields(
+      task.frontmatter.task_id,
+      task.body.targetActivity,
+      task.body.targetVibe,
+      task.body.rawDescription,
+    );
+    await saveTaskVectors(
+      task.frontmatter.task_id,
+      embResult.embeddings.map((e) => ({ field: e.field, vector: e.vector })),
+    );
+  }
 
   return new TaskAgent(task.frontmatter.task_id, personaContext);
 }
