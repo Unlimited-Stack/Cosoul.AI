@@ -10,22 +10,24 @@ import { useRouter } from "expo-router";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { AgentDebugScreen } from "@repo/ui";
-import { createDirectLlmService, createProxyLlmService } from "@repo/core/llm";
+import { createLlmServiceForPlatform } from "@repo/core/llm";
+import { getPersonaPlatformConfig, WEB_BFF_URL } from "../lib/getApiUrl";
 
 const extra = Constants.expoConfig?.extra ?? {};
 const CODING_PLAN_BASE_URL =
   extra.codingPlanBaseUrl ?? "https://coding.dashscope.aliyuncs.com/v1";
 const CODING_PLAN_API_KEY = extra.codingPlanApiKey ?? "";
-const WEB_BFF_URL = extra.webBffUrl ?? "http://localhost:3030/api";
 
 export default function AgentDebugPage() {
   const router = useRouter();
 
+  /** LLM Service — 与 LLM 工厂模式对齐 */
   const llmService = useMemo(() => {
     if (Platform.OS === "web") {
-      return createProxyLlmService(WEB_BFF_URL);
+      return createLlmServiceForPlatform({ platform: "expo-web", proxyBaseUrl: WEB_BFF_URL });
     }
-    return createDirectLlmService({
+    return createLlmServiceForPlatform({
+      platform: "native",
       baseUrl: CODING_PLAN_BASE_URL,
       apiKey: CODING_PLAN_API_KEY,
     });
@@ -33,9 +35,10 @@ export default function AgentDebugPage() {
 
   const handleGoBack = useCallback(() => router.back(), [router]);
 
-  /** 获取调试用分身完整数据（Expo Web 走 BFF，真机需改地址） */
+  /** 获取调试用分身完整数据 — 使用平台配置推导的 BFF 地址 */
   const fetchDebugPersonas = useCallback(async () => {
-    const baseUrl = Platform.OS === "web" ? WEB_BFF_URL : WEB_BFF_URL;
+    const config = getPersonaPlatformConfig();
+    const baseUrl = config.proxyBaseUrl ?? "/api";
     const res = await fetch(`${baseUrl}/debug/personas`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();

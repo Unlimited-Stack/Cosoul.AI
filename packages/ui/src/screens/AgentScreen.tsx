@@ -10,7 +10,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -19,6 +18,7 @@ import {
 } from "react-native";
 import { useTheme } from "../theme/ThemeContext";
 import { WrenchIcon } from "../components/TabIcons";
+import { PullRefreshScrollView } from "../components/PullRefreshScrollView";
 
 // ─── 领域类型 ─────────────────────────────────────────────────────
 
@@ -63,6 +63,8 @@ export interface AgentScreenProps {
   onNavigateDebug: () => void;
   /** 注入的人格服务（Web/Native 实现不同） */
   personaService: PersonaService;
+  /** 隐藏底部"添加人格 Agent"按钮（Native 端已有长按气泡入口，无需此按钮） */
+  hideAddPersona?: boolean;
 }
 
 // ─── 交互类型选项 ─────────────────────────────────────────────────
@@ -75,12 +77,11 @@ const INTERACTION_TYPES: { value: CreateTaskInput["interactionType"]; label: str
 
 // ─── 主组件 ────────────────────────────────────────────────────────
 
-export function AgentScreen({ onNavigateDebug, personaService }: AgentScreenProps) {
+export function AgentScreen({ onNavigateDebug, personaService, hideAddPersona }: AgentScreenProps) {
   const { colors, isDark } = useTheme();
 
   // 人格列表
   const [personas, setPersonas] = useState<Persona[]>([]);
-  const [loadingPersonas, setLoadingPersonas] = useState(true);
 
   // 每个人格的任务列表 { personaId: tasks[] }
   const [taskMap, setTaskMap] = useState<Record<string, AgentTask[]>>({});
@@ -108,15 +109,15 @@ export function AgentScreen({ onNavigateDebug, personaService }: AgentScreenProp
 
   // ── 加载人格列表 ──────────────────────────────────────────────
   const loadPersonas = useCallback(async () => {
-    setLoadingPersonas(true);
     try {
       const list = await personaService.listPersonas();
       setPersonas(list);
-    } finally {
-      setLoadingPersonas(false);
+    } catch (err) {
+      console.warn("[AgentScreen] 加载人格列表失败:", err);
     }
   }, [personaService]);
 
+  // 初始加载
   useEffect(() => { loadPersonas(); }, [loadPersonas]);
 
   // ── 展开人格时加载其任务 ──────────────────────────────────────
@@ -127,8 +128,12 @@ export function AgentScreen({ onNavigateDebug, personaService }: AgentScreenProp
     }
     setExpandedPersona(personaId);
     if (!taskMap[personaId]) {
-      const tasks = await personaService.listTasks(personaId);
-      setTaskMap((prev) => ({ ...prev, [personaId]: tasks }));
+      try {
+        const tasks = await personaService.listTasks(personaId);
+        setTaskMap((prev) => ({ ...prev, [personaId]: tasks }));
+      } catch (err) {
+        console.warn("[AgentScreen] 加载任务列表失败:", err);
+      }
     }
   }, [expandedPersona, taskMap, personaService]);
 
@@ -191,10 +196,14 @@ export function AgentScreen({ onNavigateDebug, personaService }: AgentScreenProp
         </View>
       </View>
 
-      <ScrollView
+      <PullRefreshScrollView
         style={styles.scrollArea}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        onRefresh={async () => {
+          setTaskMap({});
+          await loadPersonas();
+        }}
       >
 
         {/* ══ 人格 Agent 区块 ══ */}
@@ -204,14 +213,6 @@ export function AgentScreen({ onNavigateDebug, personaService }: AgentScreenProp
             每个人格拥有独立的 Soul.md 和 Memory
           </Text>
         </View>
-
-        {/* 加载中 */}
-        {loadingPersonas && (
-          <View style={styles.centerRow}>
-            <ActivityIndicator size="small" color={colors.subtitle} />
-            <Text style={[styles.hintText, { color: colors.subtitle }]}>加载人格列表...</Text>
-          </View>
-        )}
 
         {/* 人格卡片列表 */}
         {personas.map((persona) => {
@@ -353,8 +354,8 @@ export function AgentScreen({ onNavigateDebug, personaService }: AgentScreenProp
           );
         })}
 
-        {/* ── 添加人格 Agent 表单 / 按钮 ── */}
-        {showCreatePersona ? (
+        {/* ── 添加人格 Agent 表单 / 按钮（Native 端已有长按气泡入口，可隐藏） ── */}
+        {!hideAddPersona && (showCreatePersona ? (
           <View style={[styles.createPersonaForm, { backgroundColor: cardBg, borderColor: dividerColor }]}>
             <Text style={[styles.formTitle, { color: colors.text }]}>新建人格 Agent</Text>
             <Text style={[styles.formHint, { color: colors.subtitle }]}>
@@ -440,9 +441,9 @@ export function AgentScreen({ onNavigateDebug, personaService }: AgentScreenProp
               创建新的分身，拥有独立 Soul.md 和 Memory
             </Text>
           </TouchableOpacity>
-        )}
+        ))}
 
-      </ScrollView>
+      </PullRefreshScrollView>
     </View>
   );
 }

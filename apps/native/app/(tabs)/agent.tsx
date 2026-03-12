@@ -2,32 +2,31 @@
  * agent.tsx
  * Native 端「Agent」Tab 主页面
  *
- * 当前与 Web 共用 BFF Proxy，后续可根据平台切换为直连。
+ * 数据刷新：下拉刷新（PullRefreshScrollView），用户主动拉取最新数据。
+ *
+ * 添加入口：Native 端使用长按 Agent Tab → 气泡浮层 → SoulChat 创建人格，
+ * 因此隐藏底部"添加人格 Agent"按钮（Web 端仍保留）。
  */
 import { useCallback, useMemo } from "react";
 import { useRouter } from "expo-router";
-import Constants from "expo-constants";
 import { AgentScreen, type PersonaService } from "@repo/ui";
-import { createProxyPersonaService } from "@repo/core/persona";
-
-const extra = Constants.expoConfig?.extra ?? {};
-/** Web BFF 绝对地址 — Native/Metro 无 API routes，必须用绝对 URL */
-const WEB_BFF_URL = extra.webBffUrl ?? "http://localhost:3030/api";
+import { createPersonaServiceForPlatform } from "@repo/core/persona";
+import { getPersonaPlatformConfig, logApiDiagnostics } from "../../lib/getApiUrl";
 
 export default function AgentTab() {
   const router = useRouter();
   const handleNavigateDebug = useCallback(() => router.push("/agent-debug"), [router]);
 
-  /** Proxy 模式：走 Web BFF 绝对地址 → Next.js API → DB */
-  const personaService = useMemo<PersonaService>(
-    () => createProxyPersonaService(WEB_BFF_URL),
-    [],
-  );
+  const personaService = useMemo<PersonaService>(() => {
+    logApiDiagnostics("AgentTab");
+    return createPersonaServiceForPlatform(getPersonaPlatformConfig());
+  }, []);
 
   return (
     <AgentScreen
       onNavigateDebug={handleNavigateDebug}
       personaService={personaService}
+      hideAddPersona
     />
   );
 }

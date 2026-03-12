@@ -6,6 +6,10 @@ export { Button, type ButtonProps } from "./button";
 export { TabIcon, type TabIconProps } from "./components/TabIcon";
 export { LiquidTabBar, type LiquidTabBarProps } from "./components/LiquidTabBar";
 export { ThemeToggleButton } from "./components/ThemeToggleButton";
+export { PersonaBubbleOverlay, type PersonaBubbleOverlayProps, type BubblePersona } from "./components/PersonaBubbleOverlay";
+export { SoulChatSheet, type SoulChatSheetProps } from "./components/SoulChatSheet";
+export { PersonaActionSheet, type PersonaActionSheetProps, type PersonaActionItem } from "./components/PersonaActionSheet";
+export { PullRefreshScrollView, type PullRefreshScrollViewProps } from "./components/PullRefreshScrollView";
 export {
   MessageIcon, CommunityIcon, PlusCircleIcon, CompassIcon, PersonIcon,
   SettingsIcon, ChevronLeftIcon, PaletteIcon, SidebarToggleIcon,
@@ -28,3 +32,4 @@ export {
 export { CardsScreen } from "./screens/CardsScreen";
 export { ProfileScreen, type ProfileScreenProps } from "./screens/ProfileScreen";
 export { SettingsScreen, type SettingsScreenProps } from "./screens/SettingsScreen";
+export { TaskChatScreen, type TaskChatScreenProps } from "./screens/TaskChatScreen";

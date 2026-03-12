@@ -50,6 +50,8 @@ export interface LiquidTabBarProps {
     // 触发 tabPress 事件，允许拦截默认跳转行为
     emit: (event: { type: string; target?: string; canPreventDefault?: boolean }) => { defaultPrevented: boolean };
   };
+  /** 长按某个 Tab 时的回调，routeName 为被长按的路由名 */
+  onTabLongPress?: (routeName: string) => void;
 }
 
 // 各 tab 的静态配置：路由名称、SVG 图标组件、显示文字
@@ -68,7 +70,7 @@ const PILL_HEIGHT = 48;            // 药丸高度
 const PILL_HORIZONTAL_PADDING = 4; // 药丸左右内缩量（使药丸略窄于单格宽度）
 const CONTAINER_HEIGHT = PILL_HEIGHT + PILL_VERTICAL_MARGIN * 2; // 整体栏高度
 
-export function LiquidTabBar({ state, navigation }: LiquidTabBarProps) {
+export function LiquidTabBar({ state, navigation, onTabLongPress }: LiquidTabBarProps) {
   // 读取底部安全区高度（用于适配 iPhone 底部 Home 条区域）
   const insets = useSafeAreaInsets();
   // 当前主题颜色 token 和深浅色状态
@@ -184,6 +186,8 @@ export function LiquidTabBar({ state, navigation }: LiquidTabBarProps) {
               key={route.key}
               style={styles.tab}
               onPress={() => handleTabPress(route.name, route.key, index)}
+              onLongPress={() => onTabLongPress?.(route.name)}
+              delayLongPress={400}
               activeOpacity={0.7} // 点按时轻微变暗，提供视觉反馈
             >
               <tab.Icon size={22} color={iconColor} />
