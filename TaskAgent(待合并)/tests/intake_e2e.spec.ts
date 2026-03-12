@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { chatOnce } from "../src/llm/chat";
+import { chatOnce } from "../src/rag/llm/chat";
 import { saveTaskMD, getTaskFilePath, readTaskDocument } from "../src/task_agent/util/storage";
 import type { InteractionType, TaskDocument } from "../src/task_agent/util/schema";
 

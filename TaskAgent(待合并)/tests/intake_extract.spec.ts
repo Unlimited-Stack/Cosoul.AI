@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import "dotenv/config";
-import { chatOnce } from "../src/llm/chat";
+import { chatOnce } from "../src/rag/llm/chat";
 
 const EXTRACT_SYSTEM_PROMPT = `你是一个社交匹配需求分析助手。用户想要找人一起做某件事，你需要从对话中提取结构化信息。
 

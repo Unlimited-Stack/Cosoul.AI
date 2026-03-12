@@ -1,22 +1,20 @@
 import { randomUUID } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import type { InteractionType, TaskDocument } from "./util/schema";
-import { chatOnce } from "../rag/llm/chat";
+import type { InteractionType, TaskDocument } from "./types";
+import { chatOnce } from "@repo/core/llm";
 
 export interface IntakeTaskResult {
   task: TaskDocument;
   transcript: string[];
 }
 
-//针对用户第一次创建任务，创建初始task.md文件，调用llm多轮对话实现
-//将第一次创建和后续修改区分开来，第一次创建需要引导用户输入需求，后续修改则是针对已经有的task.md文件进行修改和完善
-//后续修改在状态机中跳转
-
 /**
- * Extracted fields from user conversation.
- * LLM outputs this as JSON.
+ * 针对用户第一次创建任务，通过 LLM 多轮对话提取结构化字段，生成 TaskDocument。
+ * - collectInitialTaskFromUser：CLI 交互壳（仅本地开发/调试时使用）
+ * - extractFromConversation：核心 LLM 提取逻辑（可被 API 路由直接调用）
  */
+
 interface ExtractedFields {
   interaction_type: "online" | "offline" | "any";
   rawDescription: string;
@@ -27,9 +25,7 @@ interface ExtractedFields {
   followUpQuestion: string | null;
 }
 
-// ---------------------------------------------------------------------------
-// System prompts
-// ---------------------------------------------------------------------------
+// ─── System prompt ────────────────────────────────────────────────
 
 const EXTRACT_SYSTEM_PROMPT = `你是一个社交匹配需求分析助手。用户想要找人一起做某件事，你需要从对话中提取结构化信息。
 
@@ -57,23 +53,19 @@ const EXTRACT_SYSTEM_PROMPT = `你是一个社交匹配需求分析助手。用�
 
 ## targetActivity / targetVibe / rawDescription 的写法要求
 - 每项≤50字
-- 用发散性、包容性的语言描述，覆盖用户可能接受的相近活动和氛围，但也要遵从基本方向，不能捏造需求甚至完全跑题。
-- 不要过度限定：比如用户说"找个人逛街"不意味着只接受一个人，就不要限定人数。
-- 用户没有明确限制的条件，不要擅自加上（如人数、性别、年龄），这一点非常重要
-- 适当使用近义词扩展语义覆盖面，越普适性越好，例如"逛街探店"比"逛三里屯"更通用
+- 用发散性、包容性的语言描述，覆盖用户可能接受的相近活动和氛围
+- 不要过度限定，用户没有明确限制的条件不要擅自加上（如人数、性别、年龄）
+- 适当使用近义词扩展语义覆盖面，越普适性越好
 
 ## detailedPlan 的写法要求
 - 忠实记录用户**明确提到**的所有细节（时间、地点、偏好等）
 - 用户没说的信息标注为"未限定"或"灵活"，不要编造
-- 例如用户说"找个人逛街"，人数应写"未限定，一人或多人均可"而非"1位同行者"
 
 ## followUpQuestion
 - 自然口语化，像朋友聊天
 - 只输出JSON，不要任何解释文字`;
 
-// ---------------------------------------------------------------------------
-// Main intake function
-// ---------------------------------------------------------------------------
+// ─── CLI 交互壳（仅本地开发调试使用）────────────────────────────
 
 export async function collectInitialTaskFromUser(): Promise<IntakeTaskResult | null> {
   if (!input.isTTY) {
@@ -84,19 +76,14 @@ export async function collectInitialTaskFromUser(): Promise<IntakeTaskResult | n
   const transcript: string[] = [];
 
   try {
-    // Step 1: User says whatever they want
     const initialQuery = (await rl.question("\n你想找人一起做什么？随便说说：\n> ")).trim();
-    if (!initialQuery) {
-      return null;
-    }
+    if (!initialQuery) return null;
     transcript.push(`用户: ${initialQuery}`);
 
-    // Step 2: Extract → possibly follow-up → loop until complete
     let conversationContext = `用户: ${initialQuery}`;
     let extracted = await extractFromConversation(conversationContext);
 
     while (!extracted.complete && extracted.followUpQuestion) {
-      // LLM needs more info, ask a follow-up
       console.log(`\n${extracted.followUpQuestion}`);
       const answer = (await rl.question("（输入 q/quit 取消）> ")).trim();
       if (!answer) break;
@@ -105,15 +92,12 @@ export async function collectInitialTaskFromUser(): Promise<IntakeTaskResult | n
       transcript.push(`助手: ${extracted.followUpQuestion}`);
       transcript.push(`用户: ${answer}`);
       conversationContext += `\n助手: ${extracted.followUpQuestion}\n用户: ${answer}`;
-
       extracted = await extractFromConversation(conversationContext);
     }
 
-    // Step 3: Show result, ask to refine or go
     let confirmed = false;
     while (!confirmed) {
       printExtracted(extracted);
-
       const choice = (await rl.question("\n输入 [go] 开始匹配，[q/quit] 取消，或者继续说你想补充的内容：\n> ")).trim();
 
       if (!choice || choice.toLowerCase() === "go") {
@@ -121,47 +105,25 @@ export async function collectInitialTaskFromUser(): Promise<IntakeTaskResult | n
       } else if (isExitKeyword(choice)) {
         return null;
       } else {
-        // User wants to refine
         transcript.push(`用户(补充): ${choice}`);
         conversationContext += `\n用户(补充): ${choice}`;
         extracted = await extractFromConversation(conversationContext);
       }
     }
 
-    // Step 4: Build TaskDocument
-    const nowIso = new Date().toISOString();
-    const task: TaskDocument = {
-      frontmatter: {
-        task_id: `T-${randomUUID()}`,
-        status: "Searching",
-        interaction_type: extracted.interaction_type as InteractionType,
-        current_partner_id: null,
-        entered_status_at: nowIso,
-        created_at: nowIso,
-        updated_at: nowIso,
-        version: 1,
-        pending_sync: false,
-        hidden: false
-      },
-      body: {
-        rawDescription: extracted.rawDescription,
-        targetActivity: extracted.targetActivity,
-        targetVibe: extracted.targetVibe,
-        detailedPlan: extracted.detailedPlan
-      }
-    };
-
-    return { task, transcript };
+    return { task: buildTaskDocument(extracted), transcript };
   } finally {
     rl.close();
   }
 }
 
-// ---------------------------------------------------------------------------
-// LLM extraction call
-// ---------------------------------------------------------------------------
+// ─── 核心 LLM 提取逻辑（API 路由可直接调用）─────────────────────
 
-async function extractFromConversation(conversationContext: string): Promise<ExtractedFields> {
+/**
+ * 从对话文本中提取结构化字段，供 API 路由在创建任务时调用。
+ * @param conversationContext - 对话原文（可以是单条用户描述，也可以是多轮对话拼接）
+ */
+export async function extractFromConversation(conversationContext: string): Promise<ExtractedFields> {
   const response = await chatOnce(conversationContext, {
     system: EXTRACT_SYSTEM_PROMPT,
     temperature: 0.3,
@@ -169,26 +131,22 @@ async function extractFromConversation(conversationContext: string): Promise<Ext
   });
 
   try {
-    // Strip markdown code fence if present
     let text = response.content.trim();
     if (text.startsWith("```")) {
       text = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
     }
     const parsed = JSON.parse(text) as ExtractedFields;
 
-    // Enforce length limits
     parsed.rawDescription = truncate(parsed.rawDescription, 50);
     parsed.targetActivity = truncate(parsed.targetActivity, 50);
     parsed.targetVibe = truncate(parsed.targetVibe, 50);
 
-    // Normalize interaction_type
     if (!["online", "offline", "any"].includes(parsed.interaction_type)) {
       parsed.interaction_type = "any";
     }
 
     return parsed;
   } catch {
-    // Fallback if LLM output is not valid JSON
     return {
       interaction_type: "any",
       rawDescription: truncate(conversationContext.split("\n")[0].replace(/^用户:\s*/, ""), 50),
@@ -201,9 +159,35 @@ async function extractFromConversation(conversationContext: string): Promise<Ext
   }
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+/**
+ * 从提取结果构建 TaskDocument（初始状态为 Drafting）。
+ * @param personaId - 所属分身 ID，用于 saveTaskMD 写入 DB
+ */
+export function buildTaskDocument(extracted: ExtractedFields): TaskDocument {
+  const nowIso = new Date().toISOString();
+  return {
+    frontmatter: {
+      task_id: randomUUID(),          // 纯 UUID，与 PostgreSQL defaultRandom() 保持一致
+      status: "Drafting",             // 初始状态：Drafting（经 FSM 推进到 Searching）
+      interaction_type: extracted.interaction_type as InteractionType,
+      current_partner_id: null,
+      entered_status_at: nowIso,
+      created_at: nowIso,
+      updated_at: nowIso,
+      version: 1,
+      pending_sync: false,
+      hidden: false
+    },
+    body: {
+      rawDescription: extracted.rawDescription,
+      targetActivity: extracted.targetActivity,
+      targetVibe: extracted.targetVibe,
+      detailedPlan: extracted.detailedPlan
+    }
+  };
+}
+
+// ─── 内部辅助 ─────────────────────────────────────────────────────
 
 function isExitKeyword(text: string): boolean {
   const t = text.trim().toLowerCase();
