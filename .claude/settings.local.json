@@ -24,7 +24,13 @@
       "Bash(do sed:*)",
       "Bash(done)",
       "Bash(npx tsc:*)",
-      "Bash(find /workspaces/packages/agent/src/persona-agent/task-agent -type f -name *)"
+      "Bash(find /workspaces/packages/agent/src/persona-agent/task-agent -type f -name *)",
+      "Bash(find packages/agent/.data -name *.md -newer packages/agent/test/integration-full-flow.spec.ts)",
+      "Bash(find packages/agent/.data -name task* -type f)",
+      "Bash(find /workspaces/packages/agent -path *task_agents* -name task.md)",
+      "Bash(ls -lt /workspaces/packages/agent/.data/task_agents/*/task.md)",
+      "Bash(find /workspaces/packages/agent/.data/task_agents/task_df0e7448* -type f)",
+      "Bash(git stash:*)"
     ]
   }
 }

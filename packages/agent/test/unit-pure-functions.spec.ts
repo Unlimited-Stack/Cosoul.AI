@@ -227,10 +227,9 @@ describe("TaskMD serialize/parse round-trip", () => {
     const md = serializeTaskMDContent(sampleTask);
     expect(md).toContain("---");
     expect(md).toContain("task_id:");
-    expect(md).toContain("### 原始描述");
-    expect(md).toContain("### 靶向映射");
-    expect(md).toContain("<Target_Activity>");
-    expect(md).toContain("<Target_Vibe>");
+    expect(md).toContain("raw_description:");
+    expect(md).toContain("target_activity:");
+    expect(md).toContain("target_vibe:");
   });
 
   it("serialize → parse 往返应保持数据一致", () => {

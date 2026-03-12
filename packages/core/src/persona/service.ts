@@ -49,7 +49,7 @@ export async function listPersonas(userId: string) {
   return rows;
 }
 
-/** 创建新分身，同时写入 persona_profiles（Soul.md） */
+/** 创建新分身，profile_text 和 preferences 直接写入 personas 表 */
 export async function createPersona(
   userId: string,
   input: {
@@ -59,35 +59,29 @@ export async function createPersona(
     preferences: string;
   }
 ) {
-  // 1. 插入 personas 主表
-  const [persona] = await db
-    .insert(schema.personas)
-    .values({
-      userId,
-      name: input.name,
-      bio: input.bio,
-    })
-    .returning({
-      personaId: schema.personas.personaId,
-      name: schema.personas.name,
-      bio: schema.personas.bio,
-    });
-
-  // 2. 组装 Soul.md 并写入 persona_profiles
   const profileText = buildSoulMd({
     name: input.name,
     coreIdentity: input.coreIdentity,
     preferences: input.preferences,
   });
 
-  await db.insert(schema.personaProfiles).values({
-    personaId: persona.personaId,
-    profileText,
-    preferences: {
-      coreIdentity: input.coreIdentity,
-      preferences: input.preferences,
-    },
-  });
+  const [persona] = await db
+    .insert(schema.personas)
+    .values({
+      userId,
+      name: input.name,
+      bio: input.bio,
+      profileText,
+      preferences: {
+        coreIdentity: input.coreIdentity,
+        preferences: input.preferences,
+      },
+    })
+    .returning({
+      personaId: schema.personas.personaId,
+      name: schema.personas.name,
+      bio: schema.personas.bio,
+    });
 
   return persona;
 }
@@ -110,9 +104,9 @@ export async function getPersona(personaId: string) {
   return row ?? null;
 }
 
-/** 查询分身 + 关联的 profile（Soul.md）联合数据 */
+/** 查询分身 + profile（Soul.md）数据 */
 export async function getPersonaWithProfile(personaId: string) {
-  const rows = await db
+  const [row] = await db
     .select({
       personaId: schema.personas.personaId,
       userId: schema.personas.userId,
@@ -120,18 +114,14 @@ export async function getPersonaWithProfile(personaId: string) {
       bio: schema.personas.bio,
       avatar: schema.personas.avatar,
       createdAt: schema.personas.createdAt,
-      profileText: schema.personaProfiles.profileText,
-      preferences: schema.personaProfiles.preferences,
+      profileText: schema.personas.profileText,
+      preferences: schema.personas.preferences,
     })
     .from(schema.personas)
-    .leftJoin(
-      schema.personaProfiles,
-      eq(schema.personas.personaId, schema.personaProfiles.personaId)
-    )
     .where(eq(schema.personas.personaId, personaId))
     .limit(1);
 
-  return rows[0] ?? null;
+  return row ?? null;
 }
 
 // ─── Task CRUD ────────────────────────────────────────────────────
@@ -155,21 +145,16 @@ export async function listTasks(personaId: string) {
 
 /** 调试用：获取用户所有分身（含 profile + tasks 完整数据） */
 export async function listPersonasDebug(userId: string) {
-  // 联表查询 personas + persona_profiles
   const personas = await db
     .select({
       personaId: schema.personas.personaId,
       name: schema.personas.name,
       bio: schema.personas.bio,
       createdAt: schema.personas.createdAt,
-      profileText: schema.personaProfiles.profileText,
-      preferences: schema.personaProfiles.preferences,
+      profileText: schema.personas.profileText,
+      preferences: schema.personas.preferences,
     })
     .from(schema.personas)
-    .leftJoin(
-      schema.personaProfiles,
-      eq(schema.personas.personaId, schema.personaProfiles.personaId)
-    )
     .where(eq(schema.personas.userId, userId))
     .orderBy(desc(schema.personas.createdAt));
 

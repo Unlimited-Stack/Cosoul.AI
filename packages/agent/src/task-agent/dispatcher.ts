@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { readTaskVectors, saveTaskVectors, searchByVector } from "./retrieval";
-import { embedTaskFields } from "./embedding";
+import { readTaskVectors, searchByVector } from "./retrieval";
 import {
   appendAgentChatLog,
   appendScratchpadNote,
@@ -26,6 +25,7 @@ import type {
   TaskStatus
 } from "./types";
 import { start_chat, send_friend_request } from "./friend";
+import { finalizeRevision } from "./revise";
 
 /**
  * 任务匹配调度器（Matching Dispatcher）。
@@ -69,11 +69,26 @@ interface L2Decision {
 
 // ─── 主动流 ───────────────────────────────────────────────────────
 
+/**
+ * 批量处理 Drafting / Revising 任务，推进到 Searching。
+ *
+ * - Drafting：直接 embedding + 状态流转
+ * - Revising：调用 finalizeRevision 重新 embedding（用户修改后的内容），再流转
+ *
+ * 注意：Revising 任务的多轮对话修改由 revise.ts 的 createReviseSession / processReviseMessage 处理，
+ * 本函数只负责"修改完毕、准备重新匹配"这一步。
+ */
 export async function processDraftingTasks(): Promise<void> {
-  const draftLikeTasks = await listTasksByStatuses(["Drafting", "Revising"]);
-  for (const task of draftLikeTasks) {
+  const draftingTasks = await listTasksByStatuses(["Drafting"]);
+  for (const task of draftingTasks) {
+    await processDraftingTask(task);
+  }
+
+  const revisingTasks = await listTasksByStatuses(["Revising"]);
+  for (const task of revisingTasks) {
+    await finalizeRevision(task.frontmatter.task_id);
     await transitionTaskStatus(task.frontmatter.task_id, "Searching", {
-      expectedVersion: task.frontmatter.version
+      expectedVersion: task.frontmatter.version + 1  // finalizeRevision 可能已 bump version
     });
   }
 }
@@ -99,25 +114,14 @@ export async function processSearchingTasks(): Promise<void> {
   }
 }
 
+/**
+ * Drafting → Searching 状态流转。
+ * embedding 已在 intake（创建时）或 revise（修改时）中完成，此处只做状态转换。
+ */
 export async function processDraftingTask(task: TaskDocument): Promise<boolean> {
   if (task.frontmatter.status !== "Drafting" && task.frontmatter.status !== "Revising") return false;
 
-  // 向量化三字段并写入 task_vectors 表，供后续 L1 检索使用
-  const taskId = task.frontmatter.task_id;
-  if (task.body.targetActivity && task.body.targetVibe && task.body.rawDescription) {
-    const result = await embedTaskFields(
-      taskId,
-      task.body.targetActivity,
-      task.body.targetVibe,
-      task.body.rawDescription
-    );
-    await saveTaskVectors(
-      taskId,
-      result.embeddings.map((e) => ({ field: e.field, vector: e.vector }))
-    );
-  }
-
-  await transitionTaskStatus(taskId, "Searching", {
+  await transitionTaskStatus(task.frontmatter.task_id, "Searching", {
     expectedVersion: task.frontmatter.version
   });
   return true;
@@ -318,9 +322,15 @@ export async function runL1Retrieval(task: TaskDocument): Promise<L1Candidate[]>
   const l0Candidates = await runL0Filter(task);
   if (l0Candidates.length === 0) return [];
 
-  // 从 PostgreSQL 读取源任务向量
+  // 从 PostgreSQL 读取源任务向量（必须在 intake/revise 阶段已生成）
   const sourceVectorRows = await readTaskVectors(task.frontmatter.task_id);
-  if (sourceVectorRows.length === 0) return [];
+  if (sourceVectorRows.length === 0) {
+    console.error(
+      `[L1Retrieval] 任务 ${task.frontmatter.task_id} 缺少向量数据，无法进行语义检索。` +
+      `请检查 intake 或 revise 阶段的 embedding 是否正常执行。`
+    );
+    return [];
+  }
 
   const queryVectors: Record<string, number[]> = {};
   for (const v of sourceVectorRows) {
