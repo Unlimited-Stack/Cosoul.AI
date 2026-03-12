@@ -19,7 +19,7 @@ import {
   chatOnce,
   createDirectLlmService,
   type LlmService
-} from "../../TaskAgent(待合并)/src/llm/chat";
+} from "../../TaskAgent(待合并)/src/rag/llm/chat";
 
 // ─── 凭据检测 ──────────────────────────────────────────────────────────────
 

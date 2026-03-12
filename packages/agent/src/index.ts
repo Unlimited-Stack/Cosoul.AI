@@ -42,3 +42,10 @@ export { learnFromTaskSummary } from "./persona-agent/preference-learner";
 
 // Soul.md 更新器
 export { appendHistoryAnnotation } from "./persona-agent/soul-updater";
+
+// ============================================================
+// TaskAgent — 单任务执行引擎（嵌套在 PersonaAgent 之下）
+// ============================================================
+export { TaskAgent, createTaskAgentFromIntake } from "./persona-agent/task-agent/index";
+export type { TaskStepResult } from "./persona-agent/task-agent/index";
+export type { TaskDocument, TaskStatus } from "./persona-agent/task-agent/types";

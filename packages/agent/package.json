@@ -15,15 +15,21 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run test/unit-*.spec.ts",
+    "test:integration": "vitest run test/integration-*.spec.ts"
   },
   "dependencies": {
     "@repo/core": "*",
+    "openai": "^4.104.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
     "@repo/typescript-config": "*",
     "tsup": "^8.0.1",
-    "typescript": "~5.5.4"
+    "typescript": "~5.5.4",
+    "vitest": "^4.0.18"
   }
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import "dotenv/config";
-import { chatOnce, Conversation } from "../src/llm/chat";
+import { chatOnce, Conversation } from "../src/rag/llm/chat";
 
 describe("LLM chat (qwen default provider)", () => {
 
