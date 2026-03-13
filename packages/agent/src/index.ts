@@ -57,3 +57,15 @@ export {
   buildTaskDocument,
 } from "./task-agent/intake";
 export type { ExtractionResult, IntakePersistCtx } from "./task-agent/intake";
+
+// ============================================================
+// JudgeAgent — 独立云端裁决模块（与 PersonaAgent / TaskAgent 平级）
+// ============================================================
+export { evaluateMatch } from "./judge-agent/index";
+export { JudgeEvaluateRequestSchema, JudgeEvaluateResultSchema } from "./judge-agent/types";
+export type {
+  JudgeEvaluateRequest,
+  JudgeEvaluateResult,
+  JudgeDecision,
+  JudgeTaskContext,
+} from "./judge-agent/types";

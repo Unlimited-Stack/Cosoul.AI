@@ -40,7 +40,9 @@
       "Bash(grep -E \"\\\\.ts$\")",
       "Bash(npx tsup:*)",
       "Bash(npx drizzle-kit:*)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "Bash(find /workspaces -name *.ts -path */server* -o -name *server* -o -name *express* -o -name *fastify* -o -name *hono*)",
+      "Bash(find /workspaces/apps/web/app/api -type f \\\\\\(-name *.ts -o -name *.tsx \\\\\\))"
     ],
     "additionalDirectories": [
       "/workspaces/apps/web/app/api/personas/[personaId]/tasks/intake/"
