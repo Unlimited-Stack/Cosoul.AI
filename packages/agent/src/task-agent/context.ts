@@ -1,5 +1,6 @@
 import { flushMemoryIfNeeded } from "./memory";
 import type { TaskDocument } from "./types";
+import type { Conversation, ConversationTurn } from "@repo/core/llm";
 
 /**
  * Prompt 上下文构建与 token 预算管理模块。
@@ -90,8 +91,76 @@ export async function buildPromptContext(input: BuildPromptContextInput): Promis
 }
 
 /** token 粗略估算（字符数 / 4） */
-function estimateTokens(text: string): number {
+export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
+}
+
+// ─── 对话压缩（供 intake / revise 多轮对话使用）──────────────────
+
+/** 压缩触发阈值：Conversation 历史 token 超过此值时触发压缩 */
+const COMPRESS_TOKEN_THRESHOLD = 10000;
+
+/** LLM 生成摘要的 system prompt */
+const COMPRESS_SYSTEM_PROMPT = `你是一个对话摘要助手。请将下面的多轮对话压缩为一段简洁的摘要，保留所有关键信息（用户需求、已确认的字段值、重要偏好）。
+摘要要求：
+- 使用中文
+- ≤300字
+- 保留具体的字段值（活动、氛围、互动方式等）
+- 丢弃寒暄、重复确认等无信息量内容
+- 以第三人称客观描述
+
+只输出摘要文本，不要任何前缀或格式标记。`;
+
+export interface CompressResult {
+  /** 是否触发了压缩 */
+  compressed: boolean;
+  /** 压缩后的摘要文本（未触发时为 null） */
+  summary: string | null;
+}
+
+/**
+ * 检测 Conversation 上下文是否过长，如过长则用 LLM 生成压缩摘要，
+ * 并重置 Conversation 历史（将摘要注入为首条上下文）。
+ *
+ * 调用方在每轮对话后调用此函数，若返回 compressed=true，
+ * 应将 summary 写入 chat_messages.compress_summary 字段。
+ *
+ * @param conv - 当前 Conversation 实例
+ * @param phase - 当前阶段标识（intake / revise），用于摘要前缀
+ * @param threshold - 触发压缩的 token 阈值，默认 4000
+ */
+export async function compressConversationIfNeeded(
+  conv: Conversation,
+  phase: "intake" | "revise",
+  threshold: number = COMPRESS_TOKEN_THRESHOLD,
+): Promise<CompressResult> {
+  const currentTokens = conv.getHistoryTokenCount();
+
+  if (currentTokens < threshold) {
+    return { compressed: false, summary: null };
+  }
+
+  // 收集历史 turns 为文本
+  const history: ConversationTurn[] = conv.getHistory();
+  const turnsText = history
+    .map((t) => `${t.role === "user" ? "用户" : "助手"}: ${t.content}`)
+    .join("\n");
+
+  // 用 LLM 生成压缩摘要
+  const { chatOnce } = await import("@repo/core/llm");
+  const response = await chatOnce(
+    `请压缩以下${phase === "intake" ? "需求采集" : "任务修改"}对话：\n\n${turnsText}`,
+    { system: COMPRESS_SYSTEM_PROMPT, temperature: 0.3, maxTokens: 500 },
+  );
+
+  const summary = response.content.trim();
+
+  // 重置 Conversation 并注入摘要作为上下文前缀
+  conv.reset();
+  // 以 assistant 角色注入摘要，让后续对话保持连贯
+  await conv.say(`[以下是之前对话的摘要]\n${summary}\n[摘要结束，请继续对话]`);
+
+  return { compressed: true, summary };
 }
 
 /**

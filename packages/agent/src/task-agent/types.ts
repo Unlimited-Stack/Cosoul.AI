@@ -99,6 +99,63 @@ export const HandshakeOutboundEnvelopeSchema = z.object({
 export type HandshakeInboundEnvelope = z.infer<typeof HandshakeInboundEnvelopeSchema>;
 export type HandshakeOutboundEnvelope = z.infer<typeof HandshakeOutboundEnvelopeSchema>;
 
+export const L2DecisionSchema = z.object({
+  action: z.enum(["ACCEPT", "REJECT"]),
+  shouldMoveToRevising: z.boolean(),
+  scratchpadNote: z.string().min(1)
+});
+
+export type L2Decision = z.infer<typeof L2DecisionSchema>;
+
+// ─── Judge Model 类型 ───────────────────────────────────────────
+
+export const JUDGE_VERDICT_VALUES = ["MATCH", "NEGOTIATE", "REJECT"] as const;
+
+/** 各评估维度的独立打分（0~1） */
+export const DimensionScoresSchema = z.object({
+  /** 活动兼容性：双方活动是否互补/兼容（权重最高） */
+  activityCompatibility: z.number().min(0).max(1),
+  /** 氛围对齐：双方期望的社交氛围是否一致 */
+  vibeAlignment: z.number().min(0).max(1),
+  /** 交互类型匹配：online/offline/any 的兼容度 */
+  interactionTypeMatch: z.number().min(0).max(1),
+  /** 计划具体性：双方 detailedPlan 的信息充分程度 */
+  planSpecificity: z.number().min(0).max(1),
+});
+
+export type DimensionScores = z.infer<typeof DimensionScoresSchema>;
+
+export const JudgeDecisionSchema = z.object({
+  /** 各维度独立打分，先分维度评估再综合 */
+  dimensionScores: DimensionScoresSchema,
+  /** 研判结论：MATCH=高度匹配, NEGOTIATE=部分匹配可协商, REJECT=不匹配 */
+  verdict: z.enum(JUDGE_VERDICT_VALUES),
+  /** 综合置信度 0~1（基于维度加权得出） */
+  confidence: z.number().min(0).max(1),
+  /** 是否建议任务回到 Revising 状态 */
+  shouldMoveToRevising: z.boolean(),
+  /** 内部推理过程（写入 scratchpad，不展示给用户） */
+  reasoning: z.string().min(1),
+  /** 面向用户的一句话摘要 */
+  userFacingSummary: z.string().min(1)
+});
+
+export type JudgeDecision = z.infer<typeof JudgeDecisionSchema>;
+
+/** 对端任务上下文（Judge 评估时使用，网络层未就绪时 isStubbed=true） */
+export const RemoteTaskContextSchema = z.object({
+  taskId: z.string().min(1),
+  /** 对端 detailedPlan 全文（核心匹配依据，stub 时为空字符串） */
+  detailedPlan: z.string(),
+  targetActivity: z.string(),
+  targetVibe: z.string(),
+  interactionType: InteractionTypeSchema,
+  /** true 表示远端数据不可用，当前为占位数据 */
+  isStubbed: z.boolean()
+});
+
+export type RemoteTaskContext = z.infer<typeof RemoteTaskContextSchema>;
+
 export const ErrorCodeSchema = z.enum([
   "E_SCHEMA_INVALID",
   "E_PROTOCOL_VERSION_UNSUPPORTED",

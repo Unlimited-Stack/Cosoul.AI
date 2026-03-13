@@ -10,29 +10,29 @@ import {
   queryL0Candidates,
   readLatestHandshakeExchange,
   readTaskDocument,
-  readUserProfile,
   saveIdempotencyRecord,
   transitionTaskStatus
 } from "./storage";
-import type {
-  ErrorCode,
-  HandshakeInboundEnvelope,
-  HandshakeOutboundEnvelope,
-  L0Candidate,
-  L1Candidate,
-  ListeningReport,
-  TaskDocument,
-  TaskStatus
+import {
+  type ErrorCode,
+  type HandshakeInboundEnvelope,
+  type HandshakeOutboundEnvelope,
+  type L0Candidate,
+  type L1Candidate,
+  type ListeningReport,
+  type TaskDocument,
+  type TaskStatus
 } from "./types";
 import { start_chat, send_friend_request } from "./friend";
 import { finalizeRevision } from "./revise";
+import { executeJudgeL2 } from "./judge";
 
 /**
  * 任务匹配调度器（Matching Dispatcher）。
  *
  * 主动流：驱动本地任务状态机推进（Drafting/Revising → Searching → Negotiating）
  * 被动流：处理对端 agent 发来的握手协议（Handshake）入站消息
- * 匹配漏斗：L0（结构化硬过滤）→ L1（语义检索，PostgreSQL pgvector）→ L2（本地规则/画像研判）
+ * 匹配漏斗：L0（结构化硬过滤）→ L1（语义检索，PostgreSQL pgvector）→ L2（Judge Model 中立裁决）
  */
 
 export type WaitingHumanIntent = "satisfied" | "unsatisfied" | "enable_listener" | "closed" | "friend_request" | "exit";
@@ -59,12 +59,6 @@ export interface WaitingHumanIntentResult {
   statusChanged: boolean;
   nextStatus: TaskStatus | null;
   message: string;
-}
-
-interface L2Decision {
-  action: "ACCEPT" | "REJECT";
-  shouldMoveToRevising: boolean;
-  scratchpadNote: string;
 }
 
 // ─── 主动流 ───────────────────────────────────────────────────────
@@ -267,7 +261,8 @@ export async function dispatchInboundHandshake(
       }
       response = buildActionResponse(envelope, "CANCEL");
     } else {
-      const decision = await executeL2Sandbox(localTask, envelope);
+      // Judge Model：中立评估双方 detailedPlan，单次 LLM 调用
+      const decision = await executeJudgeL2(localTask, envelope);
       await appendScratchpadNote(envelope.task_id, decision.scratchpadNote, now);
 
       if (decision.shouldMoveToRevising && localTask.frontmatter.status === "Waiting_Human") {
@@ -303,7 +298,7 @@ export async function dispatchInboundHandshake(
   return response;
 }
 
-// ─── 匹配漏斗 L0 / L1 / L2 ───────────────────────────────────────
+// ─── 匹配漏斗 L0 / L1 ────────────────────────────────────────────
 
 export async function runL0Filter(task: TaskDocument): Promise<L0Candidate[]> {
   const candidateIds = await queryL0Candidates(task.frontmatter.task_id);
@@ -351,58 +346,6 @@ export async function runL1Retrieval(task: TaskDocument): Promise<L1Candidate[]>
   return vectorResults
     .filter((r) => r.score >= 0.3)
     .map((r) => ({ taskId: r.taskId, score: r.score }));
-}
-
-/**
- * L2：本地研判沙盒（规则 + 用户画像 + 协议动作）。
- * 读取 User.md 作为用户画像（后续可替换为 PersonaContext.preferences）。
- */
-export async function executeL2Sandbox(
-  task: TaskDocument,
-  envelope: HandshakeInboundEnvelope
-): Promise<L2Decision> {
-  const userProfile = await readUserProfile();
-  const interactionCompatible =
-    task.frontmatter.interaction_type === "any" ||
-    envelope.payload.interaction_type === "any" ||
-    task.frontmatter.interaction_type === envelope.payload.interaction_type;
-
-  const hasConflict = !interactionCompatible;
-
-  if (envelope.action === "REJECT") {
-    return {
-      action: "REJECT",
-      shouldMoveToRevising: false,
-      scratchpadNote: "Peer rejected in L2; keep silent log only."
-    };
-  }
-
-  if (envelope.action === "COUNTER_PROPOSE" && task.frontmatter.status === "Waiting_Human") {
-    return {
-      action: "REJECT",
-      shouldMoveToRevising: true,
-      scratchpadNote: `Counter-propose arrived in Waiting_Human. Mark Revising for owner update. UserProfilePreview=${userProfile.slice(0, 80)}`
-    };
-  }
-
-  if (hasConflict) {
-    return {
-      action: "REJECT",
-      shouldMoveToRevising: false,
-      scratchpadNote: "L2 conflict on interaction/deal-breakers. Reject."
-    };
-  }
-
-  const supportSignals =
-    envelope.payload.target_activity.length > 0 &&
-    envelope.payload.target_vibe.length > 0 &&
-    ["PROPOSE", "COUNTER_PROPOSE", "ACCEPT"].includes(envelope.action);
-
-  return {
-    action: supportSignals ? "ACCEPT" : "REJECT",
-    shouldMoveToRevising: false,
-    scratchpadNote: `L2 evaluated with action=${envelope.action}; support=${supportSignals}; userProfileChars=${userProfile.length}`
-  };
 }
 
 // ─── 内部辅助 ─────────────────────────────────────────────────────

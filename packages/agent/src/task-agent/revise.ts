@@ -2,6 +2,7 @@ import { Conversation } from "@repo/core/llm";
 import { readTaskDocument, saveTaskMD, saveChatMessage } from "./storage";
 import { embedTaskFields } from "./embedding";
 import { saveTaskVectors } from "./retrieval";
+import { compressConversationIfNeeded } from "./context";
 import type { TaskDocument } from "./types";
 
 /**
@@ -122,6 +123,19 @@ export async function processReviseMessage(
     content: text,
     metadata: { phase: "revise", round: session.round },
   });
+
+  // 每轮结束后检测上下文是否过长，必要时压缩
+  const compressResult = await compressConversationIfNeeded(session.conv, "revise");
+  if (compressResult.compressed && compressResult.summary) {
+    await saveChatMessage({
+      taskId: session.taskId,
+      personaId: session.personaId,
+      senderType: "agent",
+      senderId: session.personaId,
+      content: compressResult.summary,
+      metadata: { phase: "revise", round: session.round, role: "compress_summary" },
+    });
+  }
 
   // 尝试从回复中提取 JSON 块
   const jsonMatch = text.match(/```json\s*\n([\s\S]*?)\n\s*```/);

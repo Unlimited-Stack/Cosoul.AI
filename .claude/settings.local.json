@@ -30,7 +30,20 @@
       "Bash(find /workspaces/packages/agent -path *task_agents* -name task.md)",
       "Bash(ls -lt /workspaces/packages/agent/.data/task_agents/*/task.md)",
       "Bash(find /workspaces/packages/agent/.data/task_agents/task_df0e7448* -type f)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(psql \"$DATABASE_URL\" -c \"ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS compress_summary text;\")",
+      "Bash(node -e \":*)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
+      "Bash(ls /workspaces/apps/web/app/api/personas/[personaId]/tasks/)",
+      "Bash(git checkout:*)",
+      "Bash(grep -r \"deleteTask\\\\|cancelTask\" /workspaces/packages/core/src --include=*.ts --include=*.tsx)",
+      "Bash(grep -E \"\\\\.ts$\")",
+      "Bash(npx tsup:*)",
+      "Bash(npx drizzle-kit:*)",
+      "Bash(npx tsx:*)"
+    ],
+    "additionalDirectories": [
+      "/workspaces/apps/web/app/api/personas/[personaId]/tasks/intake/"
     ]
   }
 }

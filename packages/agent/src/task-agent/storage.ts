@@ -66,10 +66,15 @@ export interface IdempotencyRecord {
   response: HandshakeOutboundEnvelope;
 }
 
+export type HandshakeDirection = "inbound" | "outbound" | "judge_request" | "judge_response";
+
 export interface AgentChatLogEntry {
-  direction: "inbound" | "outbound";
+  direction: HandshakeDirection;
   timestamp: string;
   payload: unknown;
+  round?: number;
+  visibleToUser?: boolean;
+  userSummary?: string;
 }
 
 export interface HandshakeExchangeSnapshot {
@@ -535,7 +540,43 @@ export async function appendAgentChatLog(taskId: string, entry: AgentChatLogEntr
     taskId,
     direction: entry.direction,
     envelope: entry.payload as Record<string, unknown>,
+    round: entry.round ?? null,
+    visibleToUser: entry.visibleToUser ?? false,
+    userSummary: entry.userSummary ?? null,
     timestamp: new Date(entry.timestamp)
+  });
+}
+
+/**
+ * 读取用户可见的协商摘要（visible_to_user = true）。
+ * 前端展示"Agent 在帮你做什么"时使用。
+ */
+export async function readUserVisibleNegotiationSummary(taskId: string): Promise<Array<{
+  round: number;
+  summary: string;
+  decision: string | null;
+  timestamp: string;
+}>> {
+  const rows = await db
+    .select()
+    .from(handshakeLogs)
+    .where(
+      and(
+        eq(handshakeLogs.taskId, taskId),
+        eq(handshakeLogs.visibleToUser, true)
+      )
+    )
+    .orderBy(handshakeLogs.timestamp);
+
+  return rows.map((row) => {
+    const envelope = row.envelope as Record<string, unknown>;
+    const decision = envelope.parsedDecision as Record<string, unknown> | undefined;
+    return {
+      round: row.round ?? 0,
+      summary: row.userSummary ?? "",
+      decision: decision?.action as string ?? null,
+      timestamp: row.timestamp.toISOString()
+    };
   });
 }
 
@@ -698,6 +739,8 @@ export interface ChatMessageInput {
   senderType: "human" | "agent";
   senderId: string;
   content: string;
+  /** 压缩后的对话历史摘要（上下文过长时由 LLM 生成） */
+  compressSummary?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -708,6 +751,7 @@ export async function saveChatMessage(msg: ChatMessageInput): Promise<string> {
     senderType: msg.senderType,
     senderId: msg.senderId,
     content: msg.content,
+    compressSummary: msg.compressSummary ?? null,
     metadata: msg.metadata ?? {},
   }).returning({ id: chatMessages.id });
   return row.id;

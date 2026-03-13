@@ -44,7 +44,7 @@ export async function flushMemoryIfNeeded(input: MemoryFlushInput): Promise<Memo
     ...input.conversationTurns.map((turn, index) => `## Turn ${index + 1}\n${turn}`)
   ].join("\n");
 
-  const summaryText = summarizeTurns(input.conversationTurns);
+  const summaryText = await summarizeTurns(input.conversationTurns);
   const summaryContent = [
     `# Chat Summary`,
     `task_id: ${input.taskId}`,
@@ -76,15 +76,33 @@ export async function flushMemoryIfNeeded(input: MemoryFlushInput): Promise<Memo
 }
 
 /**
- * 轻量摘要器（占位实现）。
- * 取首尾 turn 拼接，截断到 600 字符。
- * 后续可替换为 LLM 摘要调用。
+ * 使用 LLM 生成对话摘要。
+ * 若 LLM 调用失败，回退到轻量截取策略。
  */
-function summarizeTurns(turns: string[]): string {
+async function summarizeTurns(turns: string[]): Promise<string> {
   if (turns.length === 0) return "No conversation turns.";
-  const first = turns[0];
-  const last = turns[turns.length - 1];
-  const combined = `${first}\n${last}`.trim();
-  const trimmed = combined.length > 600 ? `${combined.slice(0, 600)}...` : combined;
-  return `Summary (${turns.length} turns):\n${trimmed}`;
+
+  const turnsText = turns
+    .map((turn, i) => `Turn ${i + 1}: ${turn}`)
+    .join("\n");
+
+  try {
+    const { chatOnce } = await import("@repo/core/llm");
+    const response = await chatOnce(
+      `请压缩以下对话为简洁摘要，保留所有关键信息（需求、字段值、偏好）：\n\n${turnsText}`,
+      {
+        system: "你是对话摘要助手。输出≤300字的中文摘要，保留关键信息，丢弃无信息量内容。只输出摘要文本。",
+        temperature: 0.3,
+        maxTokens: 500,
+      },
+    );
+    return `Summary (${turns.length} turns):\n${response.content.trim()}`;
+  } catch {
+    // LLM 不可用时回退到轻量截取
+    const first = turns[0];
+    const last = turns[turns.length - 1];
+    const combined = `${first}\n${last}`.trim();
+    const trimmed = combined.length > 600 ? `${combined.slice(0, 600)}...` : combined;
+    return `Summary (${turns.length} turns):\n${trimmed}`;
+  }
 }
