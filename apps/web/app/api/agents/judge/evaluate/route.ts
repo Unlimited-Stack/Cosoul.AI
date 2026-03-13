@@ -13,8 +13,7 @@
  *
  * 响应：{
  *   initiatorTaskId, responderTaskId,
- *   decision: JudgeDecision,
- *   l2Action: "ACCEPT" | "REJECT",
+ *   decision: JudgeDecision,  // verdict: "MATCH" | "NEGOTIATE" | "REJECT"
  *   round, timestamp, usedFallback
  * }
  *

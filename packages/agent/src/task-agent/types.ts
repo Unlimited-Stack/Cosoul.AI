@@ -99,17 +99,18 @@ export const HandshakeOutboundEnvelopeSchema = z.object({
 export type HandshakeInboundEnvelope = z.infer<typeof HandshakeInboundEnvelopeSchema>;
 export type HandshakeOutboundEnvelope = z.infer<typeof HandshakeOutboundEnvelopeSchema>;
 
+// ─── Judge Model 类型 ───────────────────────────────────────────
+
+export const JUDGE_VERDICT_VALUES = ["MATCH", "NEGOTIATE", "REJECT"] as const;
+
+/** @deprecated L2Decision 已被 JudgeDecision (verdict: MATCH|NEGOTIATE|REJECT) 取代 */
 export const L2DecisionSchema = z.object({
-  action: z.enum(["ACCEPT", "REJECT"]),
+  verdict: z.enum(JUDGE_VERDICT_VALUES),
   shouldMoveToRevising: z.boolean(),
   scratchpadNote: z.string().min(1)
 });
 
 export type L2Decision = z.infer<typeof L2DecisionSchema>;
-
-// ─── Judge Model 类型 ───────────────────────────────────────────
-
-export const JUDGE_VERDICT_VALUES = ["MATCH", "NEGOTIATE", "REJECT"] as const;
 
 /** 各评估维度的独立打分（0~1） */
 export const DimensionScoresSchema = z.object({
@@ -197,7 +198,7 @@ export const NegotiationSessionSchema = z.object({
   remote_task_id: z.string().min(1),
   status: SessionStatusSchema,
   match_score: z.number().nullable(),
-  l2_action: z.enum(["ACCEPT", "REJECT"]).nullable(),
+  verdict: z.enum(JUDGE_VERDICT_VALUES).nullable(),
   rounds: z.number().int().nonnegative(),
   started_at: z.string().datetime(),
   updated_at: z.string().datetime(),
@@ -209,7 +210,8 @@ export type NegotiationSession = z.infer<typeof NegotiationSessionSchema>;
 export const ListeningReportSchema = z.object({
   task_id: z.string().min(1),
   total_handshakes: z.number().int().nonnegative(),
-  accepted: z.number().int().nonnegative(),
+  matched: z.number().int().nonnegative(),
+  negotiating: z.number().int().nonnegative(),
   rejected: z.number().int().nonnegative(),
   timed_out: z.number().int().nonnegative(),
   sessions: z.array(NegotiationSessionSchema),

@@ -99,7 +99,7 @@ describe("handshake_logs 扩展列验证", () => {
           reasoning: "test",
           userFacingSummary: "双方活动匹配",
         },
-        mappedL2Action: "ACCEPT",
+        // verdict 已直接存储在 parsedDecision 中，无需额外映射
       },
       round: 1,
       visibleToUser: true,
@@ -144,7 +144,7 @@ describe("appendAgentChatLog 写入 Judge 裁决", () => {
           reasoning: "活动完全不相关",
           userFacingSummary: "活动不匹配。",
         },
-        mappedL2Action: "REJECT",
+        // verdict 已直接存储在 parsedDecision 中，无需额外映射
       },
       round: 2,
       visibleToUser: true,

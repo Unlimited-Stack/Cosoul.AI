@@ -188,7 +188,7 @@ describe("Zod Schemas", () => {
         remote_task_id: "task-002",
         status: "Negotiating",
         match_score: 0.85,
-        l2_action: null,
+        verdict: null,
         rounds: 1,
         started_at: "2026-03-12T00:00:00.000Z",
         updated_at: "2026-03-12T00:00:00.000Z",

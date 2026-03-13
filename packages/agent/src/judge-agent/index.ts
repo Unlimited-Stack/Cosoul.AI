@@ -92,14 +92,10 @@ export async function evaluateMatch(
     // 5. 硬约束校验
     const decision = applyHardConstraints(rawDecision, sideA, sideB);
 
-    // 6. 映射 L2 action
-    const l2Action = decision.verdict === "REJECT" ? "REJECT" as const : "ACCEPT" as const;
-
-    // 7. 持久化 judge_response 到双方
+    // 6. 持久化 judge_response 到双方
     const responsePayload = {
       content: raw,
       parsedDecision: decision,
-      mappedL2Action: l2Action,
     };
 
     await Promise.all([
@@ -125,7 +121,6 @@ export async function evaluateMatch(
       initiatorTaskId,
       responderTaskId,
       decision,
-      l2Action,
       round,
       timestamp,
       usedFallback: false,
@@ -155,13 +150,11 @@ export async function evaluateMatch(
 
     // Fallback 规则裁决
     const fallbackDecision = fallbackRuleJudge(sideA, sideB, errorMsg);
-    const l2Action = fallbackDecision.verdict === "REJECT" ? "REJECT" as const : "ACCEPT" as const;
 
     return {
       initiatorTaskId,
       responderTaskId,
       decision: fallbackDecision,
-      l2Action,
       round,
       timestamp,
       usedFallback: true,
