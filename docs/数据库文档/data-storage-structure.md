@@ -83,12 +83,19 @@ PostgreSQL
 │   ├── source_task_id       (FK → tasks)
 │   └── created_at
 │
-├── handshake_logs            # 协商握手日志
+├── handshake_logs            # 协商握手日志 + Judge Model 裁决记录
 │   ├── id
 │   ├── task_id        (FK → tasks)
-│   ├── direction      ("inbound" | "outbound")
-│   ├── envelope       (JSONB, 完整握手消息)
-│   └── timestamp
+│   ├── direction      ("inbound" | "outbound" | "judge_request" | "judge_response")
+│   ├── envelope       (JSONB, 握手报文 或 Judge Model 评估内容)
+│   │                  ↳ judge_request: envelope->>'content' 为发给 Judge 的 prompt
+│   │                  ↳ judge_response: envelope->'parsedDecision' 为 JudgeDecision 结构
+│   │                  ↳ 详见 L2-handshake-detail.md
+│   ├── round          (integer, nullable, 协商轮次)
+│   ├── visible_to_user (boolean, default false, 是否节选给用户展示)
+│   ├── user_summary   (text, nullable, 面向用户的一句话可读摘要)
+│   ├── timestamp
+│   └── 索引: idx_handshake_task(task_id), idx_handshake_task_round(task_id, round)
 │
 ├── chat_messages             # 人和agent的多轮聊天消息记录
 │   ├── id
@@ -98,6 +105,7 @@ PostgreSQL
 │   ├── sender_id      (UUID)
 │   ├── content        (text)
 │   ├── metadata       (JSONB)
+│   ├── compress_summary
 │   └── created_at
 │
 └── idempotency_keys          # 幂等性控制（7天 TTL）
@@ -112,13 +120,27 @@ PostgreSQL
 
 ### 任务状态机 (FSM)
 
+> 完整转换表定义于 `storage.ts` 的 `ALLOWED_STATUS_TRANSITIONS`
+
+```
+Drafting       → Searching, Cancelled
+Searching      → Negotiating, Timeout, Failed, Cancelled
+Negotiating    → Waiting_Human, Timeout, Failed, Cancelled
+Waiting_Human  → Revising, Drafting, Listening, Closed, Cancelled
+Listening      → Waiting_Human, Cancelled
+Revising       → Searching, Cancelled
+Closed         → Waiting_Human
+Failed         → Searching
+Timeout        → Searching
+Cancelled      → Waiting_Human
+```
+
+主线流程:
 ```
 Drafting → Searching → Negotiating → Waiting_Human → Listening
-                                   → Closed
-                                   → Revising
-                         → Failed
-                         → Timeout
-                         → Cancelled
+                                   ↘ Closed
+                     ↘ Revising → Searching (重新匹配)
+                     ↘ Failed / Timeout → Searching (可恢复)
 ```
 
 ---
@@ -224,7 +246,7 @@ total_tasks_cancelled: 0
 |------|------|------|------|
 | L0 | 硬过滤 | PostgreSQL | status=Searching + 交互类型兼容 |
 | L1 | 向量检索 | pgvector | 加权余弦相似度 (activity:0.35, vibe:0.35, desc:0.30) |
-| L2 | LLM 判断 | 内存 | 基于 Soul.md 的人格化决策 |
+| L2 | Judge Model 裁决 | PostgreSQL (handshake_logs) | 中立第三方 Judge 单次评估 + 维度打分 (dimensionScores) + 硬约束校验 (applyHardConstraints) + Zod 结构化输出 |
 
 ---
 
@@ -251,6 +273,69 @@ Outbound:
 ├── error: { code, message } | null
 └── timestamp
 ```
+
+### Judge Model 裁决记录（存于 handshake_logs，direction = judge_request / judge_response）
+
+> 完整流程和技术细节见 **`L2-handshake-detail.md`**
+
+Judge Model 采用**单次 chatOnce 调用**，作为中立第三方同时评估双方任务的匹配度。每次匹配产生 1 条 judge_request + 1 条 judge_response。
+
+```
+judge_request envelope:
+├── content         (string, 发给 Judge 的完整 prompt，包含双方任务摘要)
+├── round           (number, 协商轮次)
+└── 说明: system prompt 含维度评分指引 + 7 个 few-shot 示例
+
+judge_response envelope:
+├── content         (string, LLM 原始回复文本)
+├── parsedDecision  (JudgeDecision JSON, Zod 校验通过后)
+│   ├── dimensionScores:
+│   │   ├── activityCompatibility  (0-1, 权重 0.45)
+│   │   ├── vibeAlignment          (0-1, 权重 0.25)
+│   │   ├── interactionTypeMatch   (0-1, 权重 0.20)
+│   │   └── planSpecificity        (0-1, 权重 0.10)
+│   ├── verdict: "MATCH" | "NEGOTIATE" | "REJECT"
+│   ├── confidence: number (0-1)
+│   ├── shouldMoveToRevising: boolean
+│   ├── reasoning: string (推理过程)
+│   └── userFacingSummary: string (面向用户的可读摘要)
+├── mappedL2Action  ("ACCEPT" | "REJECT", 向后兼容映射)
+└── error?          (string, 仅调用失败时记录)
+```
+
+**裁决流程**:
+
+```
+  executeJudgeL2(localTask, envelope)
+          │
+          ▼
+  构建 Judge prompt（双方任务信息）
+          │
+          ▼
+  chatOnce() → LLM 单次调用
+          │
+          ▼
+  Zod 校验 → JudgeDecision
+          │
+          ▼
+  applyHardConstraints() — 硬约束校验:
+  ├── interaction_type 冲突 → 强制 REJECT
+  ├── MATCH + confidence < 0.7 → 降为 NEGOTIATE
+  ├── NEGOTIATE + confidence < 0.4 → 降为 REJECT
+  └── REJECT + confidence >= 0.7 → 钳制 confidence ≤ 0.35
+          │
+          ▼
+  verdict → L2Decision 映射:
+  ├── MATCH    → ACCEPT
+  ├── NEGOTIATE → ACCEPT (进入人工确认)
+  └── REJECT   → REJECT
+          │
+          ▼
+  写入 handshake_logs (judge_request + judge_response)
+```
+
+- `visible_to_user=true` 的 `judge_response` 行可被前端查询，通过 `readUserVisibleNegotiationSummary()` 获取
+- `user_summary` 字段存储 `userFacingSummary` 的自然语言摘要
 
 ### 协商会话 (NegotiationSession)
 
@@ -283,7 +368,7 @@ Outbound:
 | 文件 | 用途 |
 |------|------|
 | `packages/core/src/db/schema.ts` | 数据库表定义 (Drizzle ORM) |
-| `packages/agent/src/task-agent/storage.ts` | 存储 ACL 层 (949行) |
+| `packages/agent/src/task-agent/storage.ts` | 存储 ACL 层 |
 | `packages/agent/src/task-agent/types.ts` | 数据结构定义 |
 | `packages/agent/src/task-agent/embedding.ts` | 向量生成 (DashScope) |
 | `packages/agent/src/task-agent/retrieval.ts` | 向量检索 |
@@ -291,4 +376,7 @@ Outbound:
 | `packages/agent/src/persona-agent/soul-loader.ts` | Soul.md 解析器 |
 | `packages/agent/src/persona-agent/memory-manager.ts` | Memory.md 管理器 |
 | `packages/agent/src/persona-agent/index.ts` | PersonaAgent 主类 |
-| `packages/agent/src/task-agent/dispatcher.ts` | 匹配调度器 |
+| `packages/agent/src/task-agent/dispatcher.ts` | 匹配调度器（调用 Judge Model） |
+| `packages/agent/src/task-agent/judge.ts` | Judge Model 裁决逻辑（含 applyHardConstraints） |
+| `packages/core/src/llm/chat.ts` | LLM 调用封装（chatOnce / Conversation） |
+| `docs/数据库文档/L2-handshake-detail.md` | L2 Judge 裁决流程技术细节文档 |

@@ -8,6 +8,20 @@
       "when": 1773104799731,
       "tag": "0000_melted_inertia",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1741795200000,
+      "tag": "0001_add_compress_summary",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1741881600000,
+      "tag": "0002_extend_handshake_logs",
+      "breakpoints": true
     }
   ]
 }

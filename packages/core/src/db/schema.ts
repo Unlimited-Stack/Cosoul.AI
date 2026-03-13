@@ -168,6 +168,7 @@ export const contacts = pgTable(
 );
 
 // ─── 6. handshake_logs ────────────────────────────────────────────
+// direction: inbound / outbound（握手报文）、judge_request / judge_response（Judge Model 裁决）
 export const handshakeLogs = pgTable(
   "handshake_logs",
   {
@@ -175,14 +176,18 @@ export const handshakeLogs = pgTable(
     taskId: uuid("task_id")
       .notNull()
       .references(() => tasks.taskId, { onDelete: "cascade" }),
-    direction: varchar("direction", { length: 10 }).notNull(), // inbound / outbound
-    envelope: jsonb("envelope").notNull(), // 完整握手报文
+    direction: varchar("direction", { length: 20 }).notNull(), // inbound / outbound / judge_request / judge_response
+    envelope: jsonb("envelope").notNull(), // 握手报文 或 L2 LLM 对话内容
+    round: integer("round"), // 协商轮次（从 envelope.round 提取，便于按轮次查询历史）
+    visibleToUser: boolean("visible_to_user").notNull().default(false), // 是否节选给用户展示
+    userSummary: text("user_summary"), // 面向用户的可读摘要（L2 研判结论的自然语言版）
     timestamp: timestamp("timestamp", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
     index("idx_handshake_task").on(table.taskId),
+    index("idx_handshake_task_round").on(table.taskId, table.round),
   ]
 );
 
@@ -200,6 +205,7 @@ export const chatMessages = pgTable(
     senderType: varchar("sender_type", { length: 20 }).notNull(), // human / agent
     senderId: uuid("sender_id").notNull(), // persona_id of sender
     content: text("content").notNull(),
+    compressSummary: text("compress_summary"), // 压缩后的对话历史摘要（上下文过长时由 LLM 生成）
     metadata: jsonb("metadata").default({}), // 交互模式、附件等
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
