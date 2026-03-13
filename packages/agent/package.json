@@ -10,6 +10,16 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
+    },
+    "./judge-agent": {
+      "types": "./src/judge-agent/index.ts",
+      "import": "./src/judge-agent/index.ts",
+      "require": "./src/judge-agent/index.ts"
+    },
+    "./judge-agent/types": {
+      "types": "./src/judge-agent/types.ts",
+      "import": "./src/judge-agent/types.ts",
+      "require": "./src/judge-agent/types.ts"
     }
   },
   "scripts": {

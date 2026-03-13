@@ -25,7 +25,7 @@ import {
 } from "./types";
 import { start_chat, send_friend_request } from "./friend";
 import { finalizeRevision } from "./revise";
-import { executeJudgeL2 } from "./judge";
+import { evaluateMatch } from "../judge-agent";
 
 /**
  * 任务匹配调度器（Matching Dispatcher）。
@@ -261,15 +261,21 @@ export async function dispatchInboundHandshake(
       }
       response = buildActionResponse(envelope, "CANCEL");
     } else {
-      // Judge Model：中立评估双方 detailedPlan，单次 LLM 调用
-      const decision = await executeJudgeL2(localTask, envelope);
-      await appendScratchpadNote(envelope.task_id, decision.scratchpadNote, now);
+      // Judge Model：独立云端裁决，通过双方 taskId 读取完整数据
+      const judgeResult = await evaluateMatch({
+        initiatorTaskId: envelope.sender_agent_id,   // 主动方的 taskId
+        responderTaskId: envelope.task_id,            // 被动方（本地）的 taskId
+        round: envelope.round,
+      });
 
-      if (decision.shouldMoveToRevising && localTask.frontmatter.status === "Waiting_Human") {
+      const scratchpadNote = `[judge:${judgeResult.decision.verdict}:${judgeResult.decision.confidence.toFixed(2)}] ${judgeResult.decision.reasoning}`;
+      await appendScratchpadNote(envelope.task_id, scratchpadNote, now);
+
+      if (judgeResult.decision.shouldMoveToRevising && localTask.frontmatter.status === "Waiting_Human") {
         await transitionTaskStatus(envelope.task_id, "Revising", { expectedVersion: localTask.frontmatter.version });
       }
 
-      if (decision.action === "ACCEPT" && envelope.action === "ACCEPT") {
+      if (judgeResult.l2Action === "ACCEPT" && envelope.action === "ACCEPT") {
         const latestTask = await readTaskDocument(envelope.task_id);
         if (isStatusOneOf(latestTask.frontmatter.status, ["Searching", "Negotiating"])) {
           await transitionTaskStatus(envelope.task_id, "Waiting_Human", { expectedVersion: latestTask.frontmatter.version });
@@ -277,7 +283,7 @@ export async function dispatchInboundHandshake(
         await notifyOwnerForHumanReview(envelope.task_id);
       }
 
-      response = buildActionResponse(envelope, decision.action);
+      response = buildActionResponse(envelope, judgeResult.l2Action);
     }
   } catch (error) {
     response = buildErrorResponse(envelope, classifyErrorCode(error), normalizeErrorMessage(error));
