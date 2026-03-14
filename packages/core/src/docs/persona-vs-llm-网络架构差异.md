@@ -40,14 +40,17 @@ Expo 隧道 / LAN 地址：
 ### 临时方案：Metro 代理中间件
 
 ```
-Native 手机
-  → Expo 隧道 → Metro:8089/api/*
+Native 手机 / Expo Web（浏览器）
+  → fetch("/api/*")
+  → Metro:8089/api/*（同源，无 CORS）
   → metro.config.js 代理中间件
   → 转发到 localhost:3030/api/*（BFF）
   → DB
 ```
 
 在 `metro.config.js` 中挂一个 `/api/*` 代理中间件，把请求转发到 BFF。
+**Expo Web 也走 Metro 代理**：浏览器在 `localhost:8089` 发起 `fetch("/api/...")`，
+请求到达 Metro HTTP 服务器，代理中间件统一转发，避免跨域。
 
 ### ⚠️ 必须认清的事实
 

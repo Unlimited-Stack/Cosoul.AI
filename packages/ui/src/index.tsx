@@ -12,8 +12,8 @@ export { PersonaActionSheet, type PersonaActionSheetProps, type PersonaActionIte
 export { PullRefreshScrollView, type PullRefreshScrollViewProps } from "./components/PullRefreshScrollView";
 export {
   MessageIcon, CommunityIcon, PlusCircleIcon, CompassIcon, PersonIcon,
-  SettingsIcon, ChevronLeftIcon, PaletteIcon, SidebarToggleIcon,
-  SunIcon, MoonIcon, WrenchIcon,
+  SettingsIcon, ChevronLeftIcon, ChevronRightIcon, PaletteIcon, SidebarToggleIcon,
+  SunIcon, MoonIcon, WrenchIcon, ShieldIcon, EditIcon,
 } from "./components/TabIcons";
 
 // Screens
@@ -32,4 +32,12 @@ export {
 export { CardsScreen } from "./screens/CardsScreen";
 export { ProfileScreen, type ProfileScreenProps } from "./screens/ProfileScreen";
 export { SettingsScreen, type SettingsScreenProps } from "./screens/SettingsScreen";
+export { ProfileEditScreen, type ProfileEditScreenProps } from "./screens/ProfileEditScreen";
+export { AccountSecurityScreen, type AccountSecurityScreenProps } from "./screens/AccountSecurityScreen";
 export { TaskChatScreen, type TaskChatScreenProps, type TaskServiceLike } from "./screens/TaskChatScreen";
+
+// Auth
+export { AuthProvider, useAuth, type AuthContextValue, type AuthProviderProps, type AuthUser, type TokenStorage } from "./auth/AuthContext";
+export { LoginScreen, type LoginScreenProps } from "./screens/LoginScreen";
+export { RegisterScreen, type RegisterScreenProps } from "./screens/RegisterScreen";
+export { ForgotPasswordScreen, type ForgotPasswordScreenProps } from "./screens/ForgotPasswordScreen";

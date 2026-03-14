@@ -7,12 +7,12 @@
 import { NextResponse } from "next/server";
 import { listPersonasDebug } from "@repo/core/persona-server";
 
-const DEFAULT_USER_ID =
-  process.env.DEFAULT_USER_ID ?? "65a44ab0-9ac8-4d9a-a361-5d4006d1136f";
+const ADMIN_USER_ID =
+  process.env.ADMIN_USER_ID ?? "c9bc33bf-db62-41f9-96df-2583a88fbd77";
 
 export async function GET() {
   try {
-    const data = await listPersonasDebug(DEFAULT_USER_ID);
+    const data = await listPersonasDebug(ADMIN_USER_ID);
     return NextResponse.json(data);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

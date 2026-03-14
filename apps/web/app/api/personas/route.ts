@@ -12,12 +12,12 @@ import {
   createPersona,
 } from "@repo/core/persona-server";
 
-/** 临时默认用户 — 后续替换为认证系统获取的 userId */
-const DEFAULT_USER_ID = process.env.DEFAULT_USER_ID ?? "65a44ab0-9ac8-4d9a-a361-5d4006d1136f";
+/** Admin 调试账号 — 后续替换为认证系统获取的 userId */
+const ADMIN_USER_ID = process.env.ADMIN_USER_ID ?? "c9bc33bf-db62-41f9-96df-2583a88fbd77";
 
 export async function GET() {
   try {
-    const personas = await listPersonas(DEFAULT_USER_ID);
+    const personas = await listPersonas(ADMIN_USER_ID);
     return NextResponse.json(personas);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "缺少 name 参数" }, { status: 400 });
     }
 
-    const persona = await createPersona(DEFAULT_USER_ID, {
+    const persona = await createPersona(ADMIN_USER_ID, {
       name: body.name,
       bio: body.bio ?? "",
       coreIdentity: body.coreIdentity ?? "",

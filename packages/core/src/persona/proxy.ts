@@ -5,9 +5,9 @@
  *   LLM  数据源 = 公网 API（Coding Plan） → Native 可直连（Direct 模式）
  *   Persona 数据源 = PostgreSQL 本地 DB   → 必须经过服务端（Proxy 模式）
  *
- * 当前通路（开发阶段，DB 在本地）：
+ * 当前通路（开发阶段，DB 在本地，全部走 Metro 代理）：
  *   Web 浏览器  → createProxyPersonaService("/api")       → BFF → DB
- *   Expo Web    → createProxyPersonaService(WEB_BFF_URL)  → BFF → DB
+ *   Expo Web    → createProxyPersonaService("/api")       → Metro 代理 → BFF → DB
  *   Native 手机 → createProxyPersonaService(metroApiUrl)  → Metro 代理 → BFF → DB
  *
  * 未来通路（上云后，Persona API 部署到公网）：

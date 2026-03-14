@@ -1,15 +1,17 @@
 /**
- * Cosoul.AI — Drizzle ORM 数据库表定义（8 张核心表）
+ * Cosoul.AI — Drizzle ORM 数据库表定义（10 张核心表）
  *
  * 表一览：
- *  1. users           — 用户账号
- *  2. personas        — AI 分身（一用户多分身，含 profile_text / preferences）
- *  3. tasks           — 任务（含 FSM 状态机）
- *  4. task_vectors    — Embedding 向量索引（pgvector）
- *  5. contacts        — 联系人（分身级别好友关系）
- *  6. handshake_logs  — 握手日志
- *  7. chat_messages   — 聊天消息（intake / revise / agent 多轮对话）
- *  8. idempotency_keys — 幂等控制（TTL 7 天）
+ *  1. users              — 用户账号
+ *  2. refresh_tokens     — Refresh Token 管理（设备级别）
+ *  3. password_reset_codes — 找回密码验证码
+ *  4. personas           — AI 分身（一用户多分身，含 profile_text / preferences）
+ *  5. tasks              — 任务（含 FSM 状态机）
+ *  6. task_vectors       — Embedding 向量索引（pgvector）
+ *  7. contacts           — 联系人（分身级别好友关系）
+ *  8. handshake_logs     — 握手日志
+ *  9. chat_messages      — 聊天消息（intake / revise / agent 多轮对话）
+ * 10. idempotency_keys   — 幂等控制（TTL 7 天）
  */
 
 import {
@@ -18,6 +20,7 @@ import {
   varchar,
   text,
   timestamp,
+  date,
   jsonb,
   boolean,
   integer,
@@ -25,6 +28,7 @@ import {
   uniqueIndex,
   customType,
 } from "drizzle-orm/pg-core";
+
 
 // ─── pgvector 自定义类型 ───────────────────────────────────────────
 // Drizzle 尚未内置 vector 类型，用 customType 桥接 pgvector
@@ -51,17 +55,80 @@ const vector = customType<{
 });
 
 // ─── 1. users ─────────────────────────────────────────────────────
-export const users = pgTable("users", {
-  userId: uuid("user_id").primaryKey().defaultRandom(),
-  email: varchar("email", { length: 255 }).notNull().unique(),
-  name: varchar("name", { length: 100 }),
-  avatarUrl: text("avatar_url"),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const users = pgTable(
+  "users",
+  {
+    userId: uuid("user_id").primaryKey().defaultRandom(),
+    email: varchar("email", { length: 255 }).notNull().unique(),
+    passwordHash: varchar("password_hash", { length: 255 }).notNull().default(""),
+    phone: varchar("phone", { length: 20 }).unique(),
+    name: varchar("name", { length: 100 }),
+    avatarUrl: text("avatar_url"),
+    gender: varchar("gender", { length: 10 }),            // male / female / other / secret
+    birthday: date("birthday"),                            // 生日
+    bio: text("bio"),                                      // 个人简介（≤200 字）
+    interests: jsonb("interests").default([]),              // 兴趣标签 ["摄影","数码","运动"]
+    school: varchar("school", { length: 100 }),            // 院校名称
+    location: varchar("location", { length: 100 }),        // 常住地
+    subscriptionTier: varchar("subscription_tier", { length: 20 }).notNull().default("free"),
+    subscriptionExpiresAt: timestamp("subscription_expires_at", { withTimezone: true }),
+    status: varchar("status", { length: 20 }).notNull().default("active"),
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("idx_users_phone").on(table.phone),
+    index("idx_users_status").on(table.status),
+    index("idx_users_subscription").on(table.subscriptionTier),
+  ]
+);
 
-// ─── 2. personas ──────────────────────────────────────────────────
+
+// ─── 2. refresh_tokens ───────────────────────────────────────────
+// 每次刷新都 Rotation：旧 token 吊销 + 签发新 token
+export const refreshTokens = pgTable(
+  "refresh_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.userId, { onDelete: "cascade" }),
+    tokenHash: varchar("token_hash", { length: 255 }).notNull().unique(), // SHA-256 哈希
+    deviceInfo: varchar("device_info", { length: 255 }),                   // 设备标识
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revoked: boolean("revoked").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_refresh_tokens_user").on(table.userId),
+  ]
+);
+
+// ─── 3. password_reset_codes ─────────────────────────────────────
+// 6 位数字验证码，15 分钟过期，限频 60s/次 + 5次/24h
+export const passwordResetCodes = pgTable(
+  "password_reset_codes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.userId, { onDelete: "cascade" }),
+    code: varchar("code", { length: 10 }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    used: boolean("used").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_reset_codes_user").on(table.userId),
+  ]
+);
+
+// ─── 4. personas ──────────────────────────────────────────────────
 export const personas = pgTable(
   "personas",
   {

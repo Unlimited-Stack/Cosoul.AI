@@ -254,6 +254,7 @@ export function AgentScreen({ onNavigateDebug, personaService, hideAddPersona, h
             <SwipeToDelete
               key={persona.personaId}
               onDelete={() => handleDeletePersona(persona.personaId)}
+              disabled={isExpanded}
               style={styles.swipeContainer}
             >
             <View

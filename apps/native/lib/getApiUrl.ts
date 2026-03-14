@@ -6,10 +6,10 @@
  *   LLM: Native 直连公网 API（真 Direct）
  *   Persona: Native → Metro 代理 → BFF → DB（本质是 Proxy，Metro 只是桥梁）
  *
- * 当前通路：
- *   Web 浏览器  → 同源 BFF "/api"                         → DB
- *   Expo Web    → 跨域 BFF "http://localhost:3030/api"    → DB
- *   Native 手机 → Metro:8089/api/* → 代理中间件 → BFF:3030 → DB
+ * 当前通路（开发阶段，全部走 Metro 代理）：
+ *   Web 浏览器  → 同源 BFF "/api"                              → DB
+ *   Expo Web    → Metro:8089/api/* → 代理中间件 → BFF:3030     → DB
+ *   Native 手机 → Metro:8089/api/* → 代理中间件 → BFF:3030     → DB
  *
  * 为什么 Native 不能直连 BFF:3030？
  *   Expo 隧道只暴露 Metro 端口，手机访问不到 3030。
@@ -73,7 +73,8 @@ function getDevServerHost(): string | null {
  */
 export function getPersonaPlatformConfig(): PlatformPersonaConfig {
   if (Platform.OS === "web") {
-    return { platform: "expo-web" as PersonaPlatform, proxyBaseUrl: WEB_BFF_URL };
+    // Expo Web 也运行在 Metro:8089，用相对路径走 Metro 代理，避免跨域
+    return { platform: "expo-web" as PersonaPlatform, proxyBaseUrl: "/api" };
   }
 
   // Native — 通过 Metro 代理中间件访问 BFF（Proxy 模式，非 Direct）

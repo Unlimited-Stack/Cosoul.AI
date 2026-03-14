@@ -145,6 +145,37 @@ export function WrenchIcon({ size = defaultSize, color = defaultColor }: IconPro
   );
 }
 
+/** 右箭头——列表项指示 */
+export function ChevronRightIcon({ size = defaultSize, color = defaultColor }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Polyline points="9 18 15 12 9 6" />
+    </Svg>
+  );
+}
+
+/** 盾牌——安全/隐私 */
+export function ShieldIcon({ size = defaultSize, color = defaultColor }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </Svg>
+  );
+}
+
+/** 编辑笔——编辑入口 */
+export function EditIcon({ size = defaultSize, color = defaultColor }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <Path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </Svg>
+  );
+}
+
 /** 侧边栏展开/关闭图标 */
 export function SidebarToggleIcon({ size = 20, color = defaultColor, flipped = false }: IconProps & { flipped?: boolean }) {
   return (

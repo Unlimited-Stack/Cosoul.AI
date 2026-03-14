@@ -1,28 +1,71 @@
 /**
  * _layout.tsx（根布局）
  * 应用最外层布局，职责：
- *   1. 用 ThemeProvider 包裹整棵组件树，使所有子页面都能通过 useTheme() 获取主题
- *   2. 配置 expo-router 的 Stack 导航，隐藏顶部 Header
+ *   1. ThemeProvider 主题上下文
+ *   2. AuthProvider 认证状态上下文
+ *   3. 根据登录状态切换导航：未登录 → auth 页面；已登录 → 主 Stack
  */
 import { Stack } from "expo-router";
-import { ThemeProvider } from "@repo/ui";
+import { ThemeProvider, AuthProvider, useAuth } from "@repo/ui";
+import { nativeTokenStorage } from "../lib/tokenStorage";
+import { getPersonaPlatformConfig } from "../lib/getApiUrl";
+import { Platform } from "react-native";
+
+// 推导 API 地址
+function getApiBaseUrl(): string {
+  const config = getPersonaPlatformConfig();
+  return config.proxyBaseUrl ?? "/api";
+}
+
+// 设备标识
+const deviceInfo = Platform.OS === "web"
+  ? "Expo Web"
+  : `${Platform.OS} / Expo`;
+
+function AuthenticatedStack() {
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="settings" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="profile-edit" options={{ headerShown: false }} />
+      <Stack.Screen name="account-security" options={{ headerShown: false }} />
+      <Stack.Screen name="agent-debug" options={{ headerShown: false, presentation: "modal" }} />
+      <Stack.Screen name="agent-task-chat" options={{ headerShown: false }} />
+      <Stack.Screen name="agent-soul-chat" options={{ headerShown: false }} />
+      <Stack.Screen name="agent-task-form" options={{ headerShown: false }} />
+    </Stack>
+  );
+}
+
+function AuthStack() {
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="register" options={{ headerShown: false }} />
+      <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+    </Stack>
+  );
+}
+
+function RootNavigator() {
+  const { isAuthenticated, loading } = useAuth();
+
+  // 加载中不渲染导航（避免闪烁）
+  if (loading) return null;
+
+  return isAuthenticated ? <AuthenticatedStack /> : <AuthStack />;
+}
 
 export default function AppLayout() {
   return (
-    // ThemeProvider 必须在根层级，确保 LiquidTabBar 和所有 Screen 都在其上下文内
     <ThemeProvider>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="settings" options={{ headerShown: false, presentation: "modal" }} />
-        {/* Agent 调试页：从 Agent 主页扳手图标进入，modal 形式展示 */}
-        <Stack.Screen name="agent-debug" options={{ headerShown: false, presentation: "modal" }} />
-        {/* 任务对话页：从人格操作浮层进入 */}
-        <Stack.Screen name="agent-task-chat" options={{ headerShown: false }} />
-        {/* 灵魂对话页 */}
-        <Stack.Screen name="agent-soul-chat" options={{ headerShown: false }} />
-        {/* 任务表单页 */}
-        <Stack.Screen name="agent-task-form" options={{ headerShown: false }} />
-      </Stack>
+      <AuthProvider
+        apiBaseUrl={getApiBaseUrl()}
+        tokenStorage={nativeTokenStorage}
+        deviceInfo={deviceInfo}
+      >
+        <RootNavigator />
+      </AuthProvider>
     </ThemeProvider>
   );
 }

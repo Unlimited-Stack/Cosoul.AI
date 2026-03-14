@@ -4,7 +4,7 @@
 
 每位用户可创建**多个 AI 分身（Persona）**，每个分身代表独立人格，拥有独立偏好档案、任务列表和联系人——AI 替你找人、谈判、筛选，最终由真人确认达成连接。
 
-采用 `TypeScript + Next.js + Expo` (Turborepo) 全栈架构，Web 端与移动端代码高度复用。项目专为云原生环境（GitHub Codespaces）设计。
+项目专为云原生环境（GitHub Codespaces / 本地Docker）设计，采用 `TypeScript + Next.js + Expo` (Turborepo) 全栈架构，Web 端与移动端代码高度复用。
 
 ---
 

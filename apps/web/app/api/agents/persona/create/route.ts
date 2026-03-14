@@ -11,8 +11,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPersona } from "@repo/core/persona-server";
 
-const DEFAULT_USER_ID =
-  process.env.DEFAULT_USER_ID ?? "65a44ab0-9ac8-4d9a-a361-5d4006d1136f";
+const ADMIN_USER_ID =
+  process.env.ADMIN_USER_ID ?? "c9bc33bf-db62-41f9-96df-2583a88fbd77";
 
 /**
  * 从对话历史中提取人格关键信息（临时实现，后续由 PersonaAgent LLM 接管）
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     );
 
     // 调用已有的 createPersona 写入 DB
-    const persona = await createPersona(DEFAULT_USER_ID, {
+    const persona = await createPersona(ADMIN_USER_ID, {
       name,
       bio,
       coreIdentity,

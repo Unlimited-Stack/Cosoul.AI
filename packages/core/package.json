@@ -45,6 +45,31 @@
       "import": "./dist/task/proxy.mjs",
       "require": "./dist/task/proxy.js",
       "types": "./dist/task/proxy.d.ts"
+    },
+    "./user": {
+      "import": "./dist/user/proxy.mjs",
+      "require": "./dist/user/proxy.js",
+      "types": "./dist/user/proxy.d.ts"
+    },
+    "./user-server": {
+      "import": "./dist/user/service.mjs",
+      "require": "./dist/user/service.js",
+      "types": "./dist/user/service.d.ts"
+    },
+    "./auth": {
+      "import": "./dist/auth/index.mjs",
+      "require": "./dist/auth/index.js",
+      "types": "./dist/auth/index.d.ts"
+    },
+    "./auth-server": {
+      "import": "./dist/auth/service.mjs",
+      "require": "./dist/auth/service.js",
+      "types": "./dist/auth/service.d.ts"
+    },
+    "./auth-middleware": {
+      "import": "./dist/auth/middleware.mjs",
+      "require": "./dist/auth/middleware.js",
+      "types": "./dist/auth/middleware.d.ts"
     }
   },
   "scripts": {
@@ -56,9 +81,11 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "dotenv": "^16.4.7",
     "drizzle-orm": "^0.39.3",
     "https-proxy-agent": "^7.0.0",
+    "jsonwebtoken": "^9.0.3",
     "openai": "^4.104.0",
     "pg": "^8.13.1",
     "pgvector": "^0.2.0",
@@ -67,6 +94,8 @@
   },
   "devDependencies": {
     "@repo/typescript-config": "*",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/pg": "^8.11.11",
     "@types/uuid": "^10.0.0",
     "drizzle-kit": "^0.30.5",

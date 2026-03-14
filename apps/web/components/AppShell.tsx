@@ -1,19 +1,47 @@
 /**
  * AppShell.tsx — Web 端应用外壳
- * 客户端组件，负责：
- *   1. 包裹 ThemeProvider（主题上下文需要 useState，必须在客户端渲染）
- *   2. 组合左侧 Sidebar + 右侧内容区的分栏布局
- *   3. 将当前主题状态传递给 Sidebar
+ * 职责：
+ *   1. ThemeProvider（主题上下文）
+ *   2. AuthProvider（认证状态上下文）
+ *   3. 根据登录状态：已登录 → Sidebar + 内容区；未登录 → 认证页面
  */
 "use client";
 
-import { ThemeProvider, useTheme } from "@repo/ui";
+import { ThemeProvider, useTheme, AuthProvider, useAuth } from "@repo/ui";
 import { Sidebar } from "./Sidebar";
+import { AuthPages } from "./AuthPages";
+import { webTokenStorage } from "../lib/tokenStorage";
 
-// 内层组件：能够访问 ThemeProvider 注入的 useTheme
+// 内层组件：根据认证状态切换布局
 function ShellInner({ children }: { children: React.ReactNode }) {
   const { colors, isDark } = useTheme();
+  const { isAuthenticated, loading } = useAuth();
 
+  // 初始化中显示加载
+  if (loading) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100vh",
+          backgroundColor: colors.bg,
+          color: colors.subtitle,
+          fontSize: 16,
+        }}
+      >
+        加载中...
+      </div>
+    );
+  }
+
+  // 未登录 → 认证页面
+  if (!isAuthenticated) {
+    return <AuthPages />;
+  }
+
+  // 已登录 → 正常布局
   return (
     <div className="app-shell" style={{ backgroundColor: colors.bg }}>
       <Sidebar isDark={isDark} />
@@ -30,7 +58,9 @@ function ShellInner({ children }: { children: React.ReactNode }) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
-      <ShellInner>{children}</ShellInner>
+      <AuthProvider apiBaseUrl="/api" tokenStorage={webTokenStorage} deviceInfo="Chrome / Web">
+        <ShellInner>{children}</ShellInner>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

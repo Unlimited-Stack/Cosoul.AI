@@ -34,6 +34,22 @@
       "detail": "Expo (tunnel)"
     },
     {
+      "label": "Judge Agent: dev",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "judge", "-w", "packages/agent"],
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "echo": true,
+        "clear": false,
+        "focus": false
+      },
+      "group": "build",
+      "detail": "Judge Agent 中立裁决微服务 (:4050)"
+    },
+    {
       "label": "Dev: web+mobile",
       "dependsOn": [
         "Web: dev",
@@ -41,6 +57,14 @@
       ],
       "dependsOrder": "parallel"
     },
-    
+    {
+      "label": "Dev: all",
+      "dependsOn": [
+        "Web: dev",
+        "Mobile: dev",
+        "Judge Agent: dev"
+      ],
+      "dependsOrder": "parallel"
+    }
   ]
 }

@@ -5,7 +5,7 @@
  * 布局：行内排列（内容 + 删除按钮），容器 overflow:hidden 裁切
  * 滑动时整行左移，删除按钮从右侧边缘缓缓出现
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Animated,
   PanResponder,
@@ -20,7 +20,7 @@ import {
 export interface SwipeToDeleteProps {
   children: React.ReactNode;
   onDelete: () => void;
-  /** 是否禁用滑动（如正在删除中） */
+  /** 是否禁用滑动（如正在删除中、或父级展开时锁定） */
   disabled?: boolean;
   style?: ViewStyle;
 }
@@ -34,13 +34,32 @@ export function SwipeToDelete({ children, onDelete, disabled, style }: SwipeToDe
   const translateX = useRef(new Animated.Value(0)).current;
   const [containerWidth, setContainerWidth] = useState(0);
 
+  // 用 ref 跟踪 disabled 最新值，解决 PanResponder 闭包捕获旧值的问题
+  const disabledRef = useRef(disabled);
+  useEffect(() => {
+    disabledRef.current = disabled;
+    // disabled 变为 true 时，收回已展开的删除按钮
+    if (disabled) {
+      Animated.spring(translateX, {
+        toValue: 0,
+        damping: 20,
+        stiffness: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [disabled, translateX]);
+
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState) => {
+        // 通过 ref 读取最新 disabled 值
+        if (disabledRef.current) return false;
         // 只响应明确的水平左滑（避免与垂直滚动冲突）
-        return !disabled && Math.abs(gestureState.dx) > 8 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy * 1.5);
+        return Math.abs(gestureState.dx) > 8 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy * 1.5);
       },
+      onMoveShouldSetPanResponderCapture: () => false,
       onPanResponderMove: (_, gestureState) => {
+        if (disabledRef.current) return;
         // 只允许左滑（dx < 0），限制最大位移
         if (gestureState.dx < 0) {
           const clampedX = Math.max(gestureState.dx, -DELETE_BTN_WIDTH - 10);
@@ -52,6 +71,10 @@ export function SwipeToDelete({ children, onDelete, disabled, style }: SwipeToDe
         }
       },
       onPanResponderRelease: (_, gestureState) => {
+        if (disabledRef.current) {
+          Animated.spring(translateX, { toValue: 0, damping: 20, stiffness: 200, useNativeDriver: true }).start();
+          return;
+        }
         if (gestureState.dx < -SWIPE_THRESHOLD) {
           // 滑够了 → 吸附到展开位置
           Animated.spring(translateX, {
