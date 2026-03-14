@@ -396,7 +396,7 @@ function printListeningReport(report: ListeningReport): void {
   output.write("\n===== Listening 协商报告 =====\n");
   output.write(`task_id: ${report.task_id}\n`);
   output.write(`总握手数: ${report.total_handshakes}\n`);
-  output.write(`  accepted: ${report.accepted}  rejected: ${report.rejected}  timeout: ${report.timed_out}\n`);
+  output.write(`  matched: ${report.matched}  negotiating: ${report.negotiating}  rejected: ${report.rejected}  timeout: ${report.timed_out}\n`);
 
   if (report.sessions.length === 0) {
     output.write("（Listening 期间未收到任何握手请求）\n");
@@ -406,7 +406,7 @@ function printListeningReport(report: ListeningReport): void {
   output.write("\n协商明细（按匹配度排序）：\n");
   for (const s of report.sessions) {
     const score = s.match_score !== null ? `${(s.match_score * 100).toFixed(0)}%` : "N/A";
-    output.write(`  [${s.status}] agent=${s.remote_agent_id}  score=${score}  rounds=${s.rounds}  l2=${s.l2_action ?? "-"}\n`);
+    output.write(`  [${s.status}] agent=${s.remote_agent_id}  score=${score}  rounds=${s.rounds}  verdict=${s.verdict ?? "-"}\n`);
   }
   output.write(`报告生成时间: ${report.generated_at}\n`);
 }

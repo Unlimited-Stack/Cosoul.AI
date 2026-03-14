@@ -799,7 +799,8 @@ export async function listNegotiationSessions(taskId: string): Promise<Negotiati
 
 export async function generateListeningReport(taskId: string): Promise<ListeningReport> {
   const sessions = await readAllSessions(taskId);
-  const accepted = sessions.filter((s) => s.status === "Accepted").length;
+  const matched = sessions.filter((s) => s.status === "Accepted" && s.verdict === "MATCH").length;
+  const negotiating = sessions.filter((s) => s.status === "Negotiating" || s.verdict === "NEGOTIATE").length;
   const rejected = sessions.filter((s) => s.status === "Rejected").length;
   const timedOut = sessions.filter((s) => s.status === "Timeout").length;
 
@@ -813,7 +814,8 @@ export async function generateListeningReport(taskId: string): Promise<Listening
   return {
     task_id: taskId,
     total_handshakes: sessions.length,
-    accepted,
+    matched,
+    negotiating,
     rejected,
     timed_out: timedOut,
     sessions: sorted,

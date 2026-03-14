@@ -268,14 +268,19 @@ export async function dispatchInboundHandshake(
         round: envelope.round,
       });
 
-      const scratchpadNote = `[judge:${judgeResult.decision.verdict}:${judgeResult.decision.confidence.toFixed(2)}] ${judgeResult.decision.reasoning}`;
+      const verdict = judgeResult.decision.verdict;
+      const scratchpadNote = `[judge:${verdict}:${judgeResult.decision.confidence.toFixed(2)}] ${judgeResult.decision.reasoning}`;
       await appendScratchpadNote(envelope.task_id, scratchpadNote, now);
 
       if (judgeResult.decision.shouldMoveToRevising && localTask.frontmatter.status === "Waiting_Human") {
         await transitionTaskStatus(envelope.task_id, "Revising", { expectedVersion: localTask.frontmatter.version });
       }
 
-      if (judgeResult.l2Action === "ACCEPT" && envelope.action === "ACCEPT") {
+      // verdict → handshake action 映射：
+      //   MATCH → ACCEPT（高度匹配，双方确认）
+      //   NEGOTIATE → COUNTER_PROPOSE（部分匹配，需进一步协商）
+      //   REJECT → REJECT（不匹配）
+      if (verdict === "MATCH" && envelope.action === "ACCEPT") {
         const latestTask = await readTaskDocument(envelope.task_id);
         if (isStatusOneOf(latestTask.frontmatter.status, ["Searching", "Negotiating"])) {
           await transitionTaskStatus(envelope.task_id, "Waiting_Human", { expectedVersion: latestTask.frontmatter.version });
@@ -283,7 +288,13 @@ export async function dispatchInboundHandshake(
         await notifyOwnerForHumanReview(envelope.task_id);
       }
 
-      response = buildActionResponse(envelope, judgeResult.l2Action);
+      if (verdict === "MATCH") {
+        response = buildActionResponse(envelope, "ACCEPT");
+      } else if (verdict === "NEGOTIATE") {
+        response = buildActionResponse(envelope, "COUNTER_PROPOSE");
+      } else {
+        response = buildActionResponse(envelope, "REJECT");
+      }
     }
   } catch (error) {
     response = buildErrorResponse(envelope, classifyErrorCode(error), normalizeErrorMessage(error));
@@ -420,7 +431,7 @@ async function postHandshakeToPeer(envelope: HandshakeInboundEnvelope): Promise<
 
 function buildActionResponse(
   envelope: HandshakeInboundEnvelope,
-  action: "ACCEPT" | "REJECT" | "CANCEL"
+  action: "ACCEPT" | "COUNTER_PROPOSE" | "REJECT" | "CANCEL"
 ): HandshakeOutboundEnvelope {
   return {
     protocol_version: "1.0",

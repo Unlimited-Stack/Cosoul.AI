@@ -139,7 +139,7 @@ export const NegotiationSessionSchema = z.object({
   remote_task_id: z.string().min(1),
   status: SessionStatusSchema,
   match_score: z.number().nullable(),
-  l2_action: z.enum(["ACCEPT", "REJECT"]).nullable(),
+  verdict: z.enum(["MATCH", "NEGOTIATE", "REJECT"]).nullable(),
   rounds: z.number().int().nonnegative(),
   started_at: z.string().datetime(),
   updated_at: z.string().datetime(),

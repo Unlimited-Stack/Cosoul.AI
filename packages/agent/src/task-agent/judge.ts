@@ -40,7 +40,7 @@ export async function executeJudgeL2(
   );
 
   return {
-    action: result.l2Action,
+    verdict: result.decision.verdict,
     shouldMoveToRevising: result.decision.shouldMoveToRevising,
     scratchpadNote,
   };

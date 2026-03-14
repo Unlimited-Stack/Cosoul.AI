@@ -344,7 +344,7 @@ judge_response envelope:
 ├── remote_agent_id, remote_task_id
 ├── status: Negotiating | Accepted | Rejected | Timeout
 ├── match_score: number | null
-├── l2_action: ACCEPT | REJECT | null
+├── verdict: MATCH | NEGOTIATE | REJECT | null
 ├── rounds: number
 ├── started_at, updated_at, timeout_at
 ```

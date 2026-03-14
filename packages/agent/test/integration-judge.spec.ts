@@ -122,8 +122,7 @@ describe("Judge Model 集成测试（独立模块）", () => {
     console.log("\n📋 JudgeEvaluateResult:");
     console.log(JSON.stringify(result, null, 2));
 
-    // 篮球 vs 运动，应该是 ACCEPT（MATCH 或 NEGOTIATE）
-    expect(result.l2Action).toBe("ACCEPT");
+    // 篮球 vs 运动，verdict 应该是 MATCH 或 NEGOTIATE（不应 REJECT）
     expect(result.decision.verdict).toMatch(/^(MATCH|NEGOTIATE)$/);
     expect(result.decision.dimensionScores.activityCompatibility).toBeGreaterThanOrEqual(0.5);
 
@@ -136,7 +135,7 @@ describe("Judge Model 集成测试（独立模块）", () => {
     expect(logsA.filter(l => l.direction === "judge_response").length).toBeGreaterThanOrEqual(1);
     expect(logsB.filter(l => l.direction === "judge_response").length).toBeGreaterThanOrEqual(1);
 
-    console.log("\n✅ 场景 1 通过: l2Action =", result.l2Action, "verdict =", result.decision.verdict);
+    console.log("\n✅ 场景 1 通过: verdict =", result.decision.verdict);
   }, 30_000);
 
   it("场景2: 编程 vs 潜水 → 应该 REJECT", async () => {
@@ -154,7 +153,6 @@ describe("Judge Model 集成测试（独立模块）", () => {
     console.log(JSON.stringify(result, null, 2));
 
     // 编程 vs 潜水，完全不搭 + online vs offline 硬冲突 → REJECT
-    expect(result.l2Action).toBe("REJECT");
     expect(result.decision.verdict).toBe("REJECT");
     expect(result.decision.dimensionScores.interactionTypeMatch).toBe(0);
 
@@ -167,6 +165,6 @@ describe("Judge Model 集成测试（独立模块）", () => {
     expect(logsC.filter(l => l.direction === "judge_response").length).toBeGreaterThanOrEqual(1);
     expect(logsD.filter(l => l.direction === "judge_response").length).toBeGreaterThanOrEqual(1);
 
-    console.log("\n✅ 场景 2 通过: l2Action =", result.l2Action, "verdict =", result.decision.verdict);
+    console.log("\n✅ 场景 2 通过: verdict =", result.decision.verdict);
   }, 30_000);
 });

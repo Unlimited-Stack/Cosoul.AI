@@ -54,8 +54,6 @@ export const JudgeEvaluateResultSchema = z.object({
   responderTaskId: z.string(),
   /** Judge 裁决详情 */
   decision: JudgeDecisionSchema,
-  /** 向后兼容的 L2 action 映射 */
-  l2Action: z.enum(["ACCEPT", "REJECT"]),
   /** 协商轮次 */
   round: z.number(),
   /** 裁决时间戳 */
