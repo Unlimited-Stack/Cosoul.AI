@@ -1,31 +1,28 @@
 /**
- * judge-agent/index.ts — 独立 Judge 模块
+ * judge-agent/index.ts — 独立 Judge 微服务核心模块
  *
  * 设计理念：
  *   Judge 是云端独立服务，不属于任何一方。
  *   接收双方 taskId → 从 DB 读取双方完整任务数据 → 中立裁决 → 将结果写入双方的 handshake_logs。
  *
- * 与旧 task-agent/judge.ts 的区别：
- *   旧版：嵌入在被动方的 dispatcher 中，只能看到本地完整数据 + 对端 stub 数据
- *   新版：独立模块，通过 taskId 直接从 DB 读取双方完整数据，真正中立
- *
  * 调用方式：
  *   1. 直接调用：import { evaluateMatch } from "@repo/agent/judge-agent"
- *   2. HTTP API：POST /api/agents/judge/evaluate（由主动搜索方调用）
+ *   2. HTTP API：POST /judge（由 server.ts 路由调用）
+ *   3. BFF 转发：POST /api/agents/judge/evaluate（Next.js BFF 壳）
  */
 
 import { chatOnce } from "@repo/core/llm";
-import { readTaskDocument, appendAgentChatLog } from "../task-agent/storage";
 import { JudgeDecisionSchema } from "./types";
 import type {
   JudgeDecision,
   JudgeEvaluateRequest,
   JudgeEvaluateResult,
   JudgeTaskContext,
-  TaskDocument,
 } from "./types";
 import { JUDGE_SYSTEM_PROMPT, buildJudgePrompt } from "./prompt";
 import { applyHardConstraints } from "./constraints";
+import { fetchBothTaskContexts } from "./fetch-context";
+import { persistJudgeResult } from "./notify";
 
 // ─── 常量 ───────────────────────────────────────────────────────
 
@@ -37,85 +34,40 @@ const JUDGE_MAX_RETRIES = 3;
  * 核心入口：评估两个任务是否匹配。
  *
  * 流程：
- * 1. 从 DB 读取双方任务完整数据
- * 2. 构建对称 prompt
+ * 1. 从 DB 直查双方任务完整数据
+ * 2. 构建对称 prompt（含 action 握手动作）
  * 3. 调用 LLM 裁决 + 硬约束校验
- * 4. 将 judge_request / judge_response 写入**双方**的 handshake_logs
- * 5. 返回裁决结果
+ * 4. 将 judge_response 写入双方的 handshake_logs
+ * 5. 返回裁决结果（含 l2Action 向后兼容字段）
  */
 export async function evaluateMatch(
   request: JudgeEvaluateRequest
 ): Promise<JudgeEvaluateResult> {
-  const { initiatorTaskId, responderTaskId, round } = request;
-  const now = () => new Date().toISOString();
-  const timestamp = now();
+  const { initiatorTaskId, responderTaskId, round, action = "PROPOSE" } = request;
+  const timestamp = new Date().toISOString();
 
-  // 1. 从 DB 读取双方任务
-  const [initiatorTask, responderTask] = await Promise.all([
-    readTaskDocument(initiatorTaskId),
-    readTaskDocument(responderTaskId),
-  ]);
-
-  const sideA = taskDocumentToContext(initiatorTask);
-  const sideB = taskDocumentToContext(responderTask);
+  // 1. 从 DB 直查双方任务
+  const { sideA, sideB } = await fetchBothTaskContexts(initiatorTaskId, responderTaskId);
 
   try {
-    // 2. 构建 Judge prompt
-    const prompt = buildJudgePrompt(sideA, sideB, round);
+    // 2. 构建 Judge prompt（含 action 上下文）
+    const prompt = buildJudgePrompt(sideA, sideB, round, action);
 
-    // 3. 持久化 judge_request 到双方
-    const requestPayload = {
-      content: prompt,
+    // 3. 调用 Judge LLM + 重试
+    const { decision: rawDecision } = await callJudgeWithRetry(prompt);
+
+    // 4. 硬约束校验
+    const decision = applyHardConstraints(rawDecision, sideA, sideB);
+
+    // 5. 持久化到双方 handshake_logs
+    await persistJudgeResult({
       initiatorTaskId,
       responderTaskId,
       round,
-    };
-
-    await Promise.all([
-      appendAgentChatLog(initiatorTaskId, {
-        direction: "judge_request",
-        timestamp,
-        payload: requestPayload,
-        round,
-      }),
-      appendAgentChatLog(responderTaskId, {
-        direction: "judge_request",
-        timestamp,
-        payload: requestPayload,
-        round,
-      }),
-    ]);
-
-    // 4. 调用 Judge LLM
-    const { raw, decision: rawDecision } = await callJudgeWithRetry(prompt);
-
-    // 5. 硬约束校验
-    const decision = applyHardConstraints(rawDecision, sideA, sideB);
-
-    // 6. 持久化 judge_response 到双方
-    const responsePayload = {
-      content: raw,
-      parsedDecision: decision,
-    };
-
-    await Promise.all([
-      appendAgentChatLog(initiatorTaskId, {
-        direction: "judge_response",
-        timestamp: now(),
-        payload: responsePayload,
-        round,
-        visibleToUser: true,
-        userSummary: decision.userFacingSummary,
-      }),
-      appendAgentChatLog(responderTaskId, {
-        direction: "judge_response",
-        timestamp: now(),
-        payload: responsePayload,
-        round,
-        visibleToUser: true,
-        userSummary: decision.userFacingSummary,
-      }),
-    ]);
+      action,
+      decision,
+      usedFallback: false,
+    });
 
     return {
       initiatorTaskId,
@@ -124,32 +76,24 @@ export async function evaluateMatch(
       round,
       timestamp,
       usedFallback: false,
+      l2Action: decision.verdict === "REJECT" ? "REJECT" : "ACCEPT",
     };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "unknown error";
     console.error(`[JudgeAgent] LLM 路径失败，降级到规则 fallback: ${errorMsg}`);
 
-    // 持久化失败记录到双方
-    const errorPayload = { content: null, error: errorMsg, fellBackToRule: true };
-    await Promise.all([
-      appendAgentChatLog(initiatorTaskId, {
-        direction: "judge_response",
-        timestamp: now(),
-        payload: errorPayload,
-        round,
-        visibleToUser: false,
-      }),
-      appendAgentChatLog(responderTaskId, {
-        direction: "judge_response",
-        timestamp: now(),
-        payload: errorPayload,
-        round,
-        visibleToUser: false,
-      }),
-    ]);
-
     // Fallback 规则裁决
     const fallbackDecision = fallbackRuleJudge(sideA, sideB, errorMsg);
+
+    // 持久化 fallback 结果
+    await persistJudgeResult({
+      initiatorTaskId,
+      responderTaskId,
+      round,
+      action,
+      decision: fallbackDecision,
+      usedFallback: true,
+    });
 
     return {
       initiatorTaskId,
@@ -158,21 +102,9 @@ export async function evaluateMatch(
       round,
       timestamp,
       usedFallback: true,
+      l2Action: fallbackDecision.verdict === "REJECT" ? "REJECT" : "ACCEPT",
     };
   }
-}
-
-// ─── TaskDocument → JudgeTaskContext ─────────────────────────────
-
-function taskDocumentToContext(task: TaskDocument): JudgeTaskContext {
-  return {
-    taskId: task.frontmatter.task_id,
-    interactionType: task.frontmatter.interaction_type,
-    targetActivity: task.body.targetActivity,
-    targetVibe: task.body.targetVibe,
-    detailedPlan: task.body.detailedPlan,
-    rawDescription: task.body.rawDescription,
-  };
 }
 
 // ─── LLM 调用 + 重试 ───────────────────────────────────────────

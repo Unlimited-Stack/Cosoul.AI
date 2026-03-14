@@ -133,7 +133,8 @@ Side B: targetActivity="英语角", targetVibe="轻松社交", interaction_type=
 export function buildJudgePrompt(
   sideA: JudgeTaskContext,
   sideB: JudgeTaskContext,
-  round: number
+  round: number,
+  action: string = "PROPOSE"
 ): string {
   const sideABlock = [
     "## Side A（主动方）",
@@ -156,7 +157,8 @@ export function buildJudgePrompt(
   ].join("\n");
 
   const context = [
-    "## 协商上下文",
+    "## 握手上下文",
+    `action: ${action}`,
     `round: ${round}`,
   ].join("\n");
 

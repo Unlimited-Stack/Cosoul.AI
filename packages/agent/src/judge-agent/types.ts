@@ -38,11 +38,16 @@ export const JudgeEvaluateRequestSchema = z.object({
   responderTaskId: z.string().uuid(),
   /** 当前协商轮次 */
   round: z.number().int().nonnegative().default(0),
+  /** L2 握手动作类型（微服务接口用） */
+  action: z
+    .enum(["PROPOSE", "COUNTER_PROPOSE", "ACCEPT", "REJECT", "CANCEL", "ERROR"])
+    .default("PROPOSE"),
   /** 请求方标识（用于日志追踪） */
   requesterId: z.string().optional(),
 });
 
-export type JudgeEvaluateRequest = z.infer<typeof JudgeEvaluateRequestSchema>;
+/** 输入类型：action/round 有 default，调用方可不传 */
+export type JudgeEvaluateRequest = z.input<typeof JudgeEvaluateRequestSchema>;
 
 // ─── Judge 裁决结果 ─────────────────────────────────────────────
 
@@ -60,6 +65,8 @@ export const JudgeEvaluateResultSchema = z.object({
   timestamp: z.string().datetime(),
   /** 是否使用了 fallback 规则（LLM 不可用时） */
   usedFallback: z.boolean().default(false),
+  /** 向后兼容的 L2 映射：REJECT → REJECT，其他 → ACCEPT */
+  l2Action: z.enum(["ACCEPT", "REJECT"]),
 });
 
 export type JudgeEvaluateResult = z.infer<typeof JudgeEvaluateResultSchema>;
